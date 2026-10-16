@@ -1,6 +1,6 @@
 # Campaign all-tech option
 
-Set `CampaignAllTech=yes` in the `[Options]` section of `vanillatd.ini`.
+Set `CampaignAllTech=yes` in the `[Options]` section of `conquer.ini`.
 The default is off. This local campaign option applies only to the human
 GDI/Nod player in normal single-player games, including loaded saves.
 
@@ -12,7 +12,7 @@ can use either faction's factory of the same category. Costs, build times,
 combat statistics, resources, enemy AI and mission triggers are unchanged.
 
 Civilian structures, dinosaurs, cargo aircraft and other non-production story
-objects are not added. Missions without production facilities do not receive
+objects (reserved level/scenario 99) are not added. Missions without production facilities do not receive
 an automatic base or extra MCV. Superweapon charging and mission-specific
 special-weapon rules remain original. Set the option to `no` and restart to
 return to normal campaign rules; existing placed units/buildings remain.
