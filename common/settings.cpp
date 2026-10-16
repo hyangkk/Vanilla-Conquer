@@ -15,6 +15,7 @@ SettingsClass::SettingsClass()
     Mouse.ControllerEnabled = false;
     Mouse.ControllerPointerSpeed = 10;
     Options.MouseWheelScrolling = true;
+    Options.CampaignAllTech = false;
 
     /*
     ** Video settings
@@ -39,6 +40,7 @@ SettingsClass::SettingsClass()
 void SettingsClass::Load(INIClass& ini)
 {
     char buf[128];
+    Options.CampaignAllTech = ini.Get_Bool("Options", "CampaignAllTech", Options.CampaignAllTech);
 
     /*
     ** Mouse settings
@@ -95,6 +97,7 @@ void SettingsClass::Load(INIClass& ini)
 
 void SettingsClass::Save(INIClass& ini)
 {
+    ini.Put_Bool("Options", "CampaignAllTech", Options.CampaignAllTech);
     /*
     ** Mouse settings
     */

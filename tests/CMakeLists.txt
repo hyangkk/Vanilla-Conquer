@@ -83,3 +83,8 @@ target_include_directories(test_renderlayers PRIVATE .. ../common)
 target_link_libraries(test_renderlayers PRIVATE commonv common)
 add_test(NAME renderlayers COMMAND test_renderlayers)
 add_dependencies(tests test_renderlayers)
+
+add_executable(test_campaigntech campaigntech.cpp)
+target_include_directories(test_campaigntech PRIVATE ..)
+add_test(NAME campaigntech COMMAND test_campaigntech)
+add_dependencies(tests test_campaigntech)

@@ -44,6 +44,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "type.h"
 
 /*
@@ -1835,7 +1836,7 @@ BuildingClass* InfantryTypeClass::Who_Can_Build_Me(bool intheory, bool legal, Ho
 
         if (building && !building->IsInLimbo && building->House->Class->House == house
             && building->Mission != MISSION_DECONSTRUCTION && building->Class->ToBuild == RTTI_INFANTRYTYPE
-            && ((1L << building->ActLike) & Ownable) && (!legal || building->House->Can_Build(Type, building->ActLike))
+            && (((1L << building->ActLike) & Ownable) || Campaign_All_Tech_Type(this, building->House)) && (!legal || building->House->Can_Build(Type, building->ActLike))
             && (intheory || !building->In_Radio_Contact())) {
 
             anybuilding = building;

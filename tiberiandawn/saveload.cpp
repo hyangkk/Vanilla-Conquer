@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 
 extern bool DLLSave(FileClass& file);
 extern bool DLLLoad(FileClass& file);
@@ -493,6 +494,8 @@ bool Load_Game(const char* file_name)
     Fixup_Scenario();
 
     ScenarioInit = 0;
+    // Old saves may contain a sidebar calculated before campaign unlock was enabled.
+    if (Campaign_All_Tech(PlayerPtr)) PlayerPtr->IsRecalcNeeded = true;
 
     /*
     ** Fixup remap tables. ST - 2/28/2020 1:50PM
