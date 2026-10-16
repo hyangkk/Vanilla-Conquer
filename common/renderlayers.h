@@ -15,21 +15,24 @@
 #include <chrono>
 #include <cstdint>
 #include <vector>
+#include <array>
 class GraphicViewPortClass;
 namespace RenderLayers {
 struct Layer {
     int x, y, width, height;
     double start_x, start_y, end_x, end_y;
     std::vector<unsigned char> pixels, mask;
+    std::vector<unsigned short> effects;
 };
 struct Frame {
     int width = 0, height = 0, clip_x = 0, clip_y = 0, clip_w = 0, clip_h = 0;
-    bool ready = false, publishing = false, capturing = false;
+    bool ready = false, publishing = false, capturing = false, supported = true;
     std::chrono::steady_clock::time_point tick_start;
     double duration = 0;
     unsigned long logical_tick = 0, serial = 0;
     std::vector<unsigned char> background;
     std::vector<Layer> layers;
+    std::vector<std::array<unsigned char, 256>> effects;
 };
 extern Frame frame;
 void Begin(GraphicViewPortClass& view, int x, int y, int width, int height);
@@ -40,6 +43,10 @@ void Finish();
 void Invalidate();
 // Called by the existing rasterizers, recording coverage even when foreground and background colours match.
 void Mark(const unsigned char* destination, int width, int height, int pitch,
-          const unsigned char* source = nullptr, int source_pitch = 0, bool transparent = false);
+          const unsigned char* source = nullptr, int source_pitch = 0, bool transparent = false,
+          const unsigned char* ghost_lookup = nullptr, const unsigned char* ghost_table = nullptr,
+          const unsigned char* fade_table = nullptr, int fade_count = 0);
+// Palette-table effects are evaluated against the newly composed background, never a baked old position.
+const std::vector<uint32_t>& Compose(int width, int height, const uint32_t* palette, double fraction);
 }
 #endif

@@ -1402,7 +1402,9 @@ void Buffer_Frame_To_Page(int x,
     int pitch = viewport.Get_XAdd() + viewport.Get_Width() + viewport.Get_Pitch();
     unsigned char* dst = ystart * pitch + xstart + reinterpret_cast<unsigned char*>(viewport.Get_Offset());
     unsigned char* src = frame_data + ms_img_offset;
-    RenderLayers::Mark(dst, blit_width, blit_height, pitch, src, width, (flags & SHAPE_TRANS) != 0);
+    if (RenderLayers::frame.capturing && (flags & SHAPE_PREDATOR)) RenderLayers::frame.supported = false;
+    RenderLayers::Mark(dst, blit_width, blit_height, pitch, src, width, (flags & SHAPE_TRANS) != 0,
+                       ghost_lookup, ghost_table, fade_table, fade_count);
     int dst_pitch = pitch - blit_width;
     int src_pitch = width - blit_width;
 

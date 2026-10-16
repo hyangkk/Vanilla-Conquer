@@ -81,6 +81,27 @@ int main() {
     Check(RenderLayers::frame.ready, "Publishing its own frame must not invalidate it");
     RenderLayers::frame.publishing=false; RenderLayers::Invalidate();
     Check(!RenderLayers::frame.ready, "A modal/menu blit must invalidate the game layers");
+    uint32_t palette[256];
+    for(int i=0;i<256;++i) { unsigned char rgba[4]={static_cast<unsigned char>(i),static_cast<unsigned char>(i),static_cast<unsigned char>(i),255}; std::memcpy(&palette[i],rgba,4); }
+    for(int y=0;y<16;++y) for(int x=0;x<16;++x) gb.Put_Pixel(x,y,20+x*10);
+    RenderLayers::Begin(gb,0,0,16,16);
+    RenderLayers::Begin_Object(2,0,2,0);
+    unsigned char source=1, lookup[256], table[256];
+    std::memset(lookup,255,256); lookup[1]=0;
+    for(int i=0;i<256;++i) table[i]=i/2;
+    auto* canvas=static_cast<unsigned char*>(gb.Get_Buffer());
+    RenderLayers::Mark(canvas+2*16+2,1,1,16,&source,1,true,lookup,table);
+    canvas[2*16+2]=20; // Rasterized at x2 over colour40; presentation moves to x4 over colour60.
+    RenderLayers::End_Object(); RenderLayers::Begin_Foreground(); RenderLayers::Finish();
+    const auto shadow=RenderLayers::Compose(16,16,palette,0);
+    Check(shadow[2*16+4]==palette[30] && shadow[2*16+2]==palette[40], "Moving shadow must remap its new background, not carry the old terrain");
+    Check(RenderLayers::frame.effects.size()==1, "Identical palette effects must deduplicate");
+    for(int y=0;y<16;++y) for(int x=0;x<16;++x) gb.Put_Pixel(x,y,20+x*10);
+    RenderLayers::Begin(gb,0,0,16,16); RenderLayers::Begin_Object(0,0,1,0);
+    gb.Put_Pixel(2,2,255); RenderLayers::End_Object(); RenderLayers::Begin_Foreground(); RenderLayers::Finish();
+    const auto quarter=RenderLayers::Compose(16,16,palette,.25);
+    const auto half=RenderLayers::Compose(16,16,palette,.5);
+    Check(quarter[2*16+2]==palette[201] && half[2*16+2]==palette[148], "Subpixel output must change before a whole source pixel of movement");
     gb.Unlock();
     std::puts("raster layer reconstruction and coverage: all checks passed");
 }

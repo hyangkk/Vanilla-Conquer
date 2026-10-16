@@ -12,13 +12,15 @@ cap alone does not create intermediate movement positions.
 
 The original 8-bit rasterizers capture coverage into separate ordered layers,
 including pixels that have the same colour as their background. Scene capture
-runs at the existing game/input redraw cadence. SDL2 composes those layers with
-fractional destination coordinates at presentation cadence. Sprites are first
-upscaled with nearest sampling, then shifted at output resolution with linear
-sampling and premultiplied alpha, keeping the background and pixel-art interiors
-sharp. Static occluders, fog and the foreground remain in draw order. Menus/movie
-blits invalidate the captured scene. Coverage state is external to saved objects;
-scenario/load and object lifetime hooks reset it. Large position jumps snap.
+runs at the existing game/input redraw cadence. At each display presentation,
+the output-resolution compositor interpolates positions and blends subpixel edge
+coverage while preserving sharp pixel-art interiors. SDL2/Metal presents that frame.
+Palette-table shadows and translucent fog are evaluated against the newly composed
+background, so terrain is never baked into a moving shadow. Static occluders, fog
+and the foreground remain in draw order. Menus/movie blits invalidate the captured
+scene. Coverage state is external to saved objects; scenario/load and object lifetime
+hooks reset it. Large position jumps snap. Predator distortion/cloaking falls back
+to the original raster for that scene to preserve the effect safely.
 
 Ground motion for infantry, vehicles, aircraft and bullets is interpolated. Sprite
 animation poses and aircraft altitude retain the original logic cadence. Multiplayer
