@@ -1,3 +1,4 @@
+#include "renderlayers.h"
 //
 // Copyright 2020 Electronic Arts Inc.
 //
@@ -416,6 +417,7 @@ int Buffer_Print(void* thisptr, const char* string, int x, int y, int fground, i
                     unsigned char color = ColorXlat[0][0];
                     if (color) {
                         for (int i = char_ypos; i; --i) {
+                            RenderLayers::Mark(char_dst, blit_width, 1, pitch);
                             memset(char_dst, color, blit_width);
                             char_dst += pitch;
                         }
@@ -435,6 +437,7 @@ int Buffer_Print(void* thisptr, const char* string, int x, int y, int fground, i
                             unsigned char color = ColorXlat[0][color_packed & 0x0F];
 
                             if (color) {
+                                RenderLayers::Mark(char_dst, 1, 1, pitch);
                                 *char_dst = color;
                             }
 
@@ -448,6 +451,7 @@ int Buffer_Print(void* thisptr, const char* string, int x, int y, int fground, i
                             color = ColorXlat[0][color_packed >> 4];
 
                             if (color) {
+                                RenderLayers::Mark(char_dst, 1, 1, pitch);
                                 *char_dst = color;
                             }
 
@@ -464,7 +468,8 @@ int Buffer_Print(void* thisptr, const char* string, int x, int y, int fground, i
 
                         if (color) {
                             for (int i = char_height; i; --i) {
-                                memset(char_dst, color, blit_width);
+                                RenderLayers::Mark(char_dst, blit_width, 1, pitch);
+                            memset(char_dst, color, blit_width);
                                 char_dst += pitch;
                             }
                         }

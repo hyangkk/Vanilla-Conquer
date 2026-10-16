@@ -96,6 +96,12 @@ int main() {
     const auto shadow=RenderLayers::Compose(16,16,palette,0);
     Check(shadow[2*16+4]==palette[30] && shadow[2*16+2]==palette[40], "Moving shadow must remap its new background, not carry the old terrain");
     Check(RenderLayers::frame.effects.size()==1, "Identical palette effects must deduplicate");
+    RenderLayers::Begin(gb,0,0,16,16); RenderLayers::Begin_Foreground();
+    RenderLayers::Mark(canvas+3*16+3,1,1,16,&source,1,true,lookup,table);
+    canvas[3*16+3]/=2;
+    RenderLayers::Mark(canvas+3*16+3,1,1,16); canvas[3*16+3]=250; // Actual font writer overwrites an existing fog material.
+    RenderLayers::Finish();
+    Check(RenderLayers::Compose(16,16,palette,1)[3*16+3]==palette[250], "Foreground text must replace fog material with opaque ink");
     for(int y=0;y<16;++y) for(int x=0;x<16;++x) gb.Put_Pixel(x,y,20+x*10);
     RenderLayers::Begin(gb,0,0,16,16); RenderLayers::Begin_Object(0,0,1,0);
     gb.Put_Pixel(2,2,255); RenderLayers::End_Object(); RenderLayers::Begin_Foreground(); RenderLayers::Finish();
