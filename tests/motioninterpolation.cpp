@@ -47,5 +47,9 @@ int main() {
         smoothed=next;
     }
     Check(Smooth_Timeline(short_stop,10,.067).x==8, "Stopped units must settle at their exact authoritative destination");
+    Timeline fast;
+    for (int i=0;i<60;++i) fast.Record(i/60.0,i,0);
+    Check(std::abs(Smooth_Timeline(fast.Points(),59.0/60-.15,1.0/60).x-50)<1e-8,
+          "Fastest game speed must retain the complete display smoothing window");
     std::puts("motion interpolation: all checks passed");
 }

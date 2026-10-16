@@ -46,7 +46,8 @@ public:
     void Record(double time, double x, double y) {
         if (!points.empty() && time<=points.back().time) return;
         points.push_back({time,x,y});
-        if (points.size()>8) points.erase(points.begin());
+        // The minimum display delay still needs history at the fastest 60Hz logic speed.
+        if (points.size()>32) points.erase(points.begin());
     }
     const std::vector<Point>& Points() const { return points; }
 };
