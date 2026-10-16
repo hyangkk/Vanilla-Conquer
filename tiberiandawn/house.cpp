@@ -559,8 +559,8 @@ bool Campaign_All_Tech(const HouseClass* house)
 
 bool Campaign_All_Tech_Type(const TechnoTypeClass* type, const HouseClass* house)
 {
-    return type && CampaignTech::Eligible(Campaign_All_Tech(house), type->IsBuildable && type->Level < 99 && type->Scenario < 99,
-                                         (type->Ownable & (HOUSEF_GOOD | HOUSEF_BAD)) != 0);
+    return type && CampaignTech::Eligible(Campaign_All_Tech(house), type->IsBuildable,
+                                         (type->Ownable & (HOUSEF_GOOD | HOUSEF_BAD)) != 0, type->Level, type->Scenario);
 }
 
 bool HouseClass::Can_Build(TechnoTypeClass const* type, HousesType house) const

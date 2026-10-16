@@ -10,9 +10,11 @@ int main() {
     Check(!Enabled(true,true,false,true,true));
     Check(!Enabled(true,true,true,false,true));
     Check(!Enabled(true,true,true,true,false));
-    Check(Eligible(true,true,true));
-    Check(!Eligible(true,false,true));
-    Check(!Eligible(true,true,false));
-    Check(!Eligible(false,true,true));
+    Check(Eligible(true,true,true,7,98));
+    Check(!Eligible(true,false,true,7,1));
+    Check(!Eligible(true,true,false,7,1));
+    Check(!Eligible(false,true,true,7,1));
+    Check(!Eligible(true,true,true,99,1)); // Civilian infantry and mission-only factories.
+    Check(!Eligible(true,true,true,7,99));
     std::puts("campaign tech scope and non-production exclusions passed");
 }
