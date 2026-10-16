@@ -59,6 +59,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include <cstdlib>
 #include "smoothmotion.h"
 #include "common/irandom.h"
 #include <stdlib.h>
@@ -128,6 +129,7 @@ bool InMainLoop = false;
  *   10/01/1994 JLB : Created.                                                                 *
  *=============================================================================================*/
 extern int TotalLocks;
+extern bool Generate_Mission_Starts(const char* directory);
 void Main_Game(int argc, char* argv[])
 {
     bool fade = false; // don't fade title screen the first time through
@@ -140,6 +142,13 @@ void Main_Game(int argc, char* argv[])
     }
 
     CCDebugString("C&C95 - Game initialisation complete.\n");
+    // Explicit offline export mode, isolated from normal gameplay and existing saves.
+    if (const char* directory = std::getenv("VANILLA_MISSION_START_DIR")) {
+        const bool ok = Generate_Mission_Starts(directory);
+        Clear_Scenario();
+        std::exit(ok ? EXIT_SUCCESS : EXIT_FAILURE);
+    }
+
     /*
     **	Game processing loop:
     **	1) Select which game to play, or whether to exit (don't fade the palette
