@@ -374,7 +374,15 @@ bool Set_Video_Mode(int w, int h, int bits_per_pixel)
         }
     }
 
-    renderer = SDL_CreateRenderer(window, renderer_index, SDL_RENDERER_TARGETTEXTURE);
+    // Interpolated positions need display-paced presentation as well as extra
+    // frames. Otherwise the timer limiter drifts against the display refresh.
+    const Uint32 render_flags = SDL_RENDERER_TARGETTEXTURE |
+        (Settings.Video.SmoothMotion ? SDL_RENDERER_PRESENTVSYNC : 0);
+    renderer = SDL_CreateRenderer(window, renderer_index, render_flags);
+    if (!renderer && Settings.Video.SmoothMotion) {
+        DBG_INFO("VSync renderer unavailable, using timer pacing: %s", SDL_GetError());
+        renderer = SDL_CreateRenderer(window, renderer_index, SDL_RENDERER_TARGETTEXTURE);
+    }
     if (renderer == nullptr) {
         DBG_ERROR("SDL_CreateRenderer failed: %s", SDL_GetError());
         Reset_Video_Mode();
