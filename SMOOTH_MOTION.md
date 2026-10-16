@@ -2,9 +2,12 @@
 
 This branch is based on the installed r973 / ce83b59 game. Simulation timing, unit
 statistics, AI, navigation, targeting, RNG and gameplay coordinates are unchanged.
-The renderer presents movement between consecutive logic positions with one logic
-tick of visual latency (about 67 ms at GameSpeed=4). Commands still enter the
-original input/command path immediately.
+The renderer samples a short history of completed simulation positions at a delayed
+presentation timestamp (100 ms at GameSpeed=4; 1.5 ticks for slower settings).
+Pending simulation snapshots never replace published positions or timestamps during
+the input redraw before Logic.AI. Actual sample timestamps absorb uneven tick
+intervals without extrapolating through blockers. Commands still enter the original
+input/command path immediately.
 
 Enable with `[Video] SmoothMotion=yes` (default); `SmoothMotion=no` restores the
 original raster presentation. Set `FrameLimit=120` for a 120 Hz display. A display
@@ -40,7 +43,8 @@ reconstruction, identical-colour coverage, solid fog, primitive coverage, immuta
 published frames and menu invalidation. Original raster tests also run unchanged.
 
 For a bounded local presentation trace, set `VANILLA_MOTION_TRACE` to a writable CSV
-path before launch. It records at most 600 moving-layer presentation samples. This
+path before launch. It records at most 1800 selected-object presentation samples with stable world
+anchors and a pre-logic redraw phase flag. This
 measures application draw calls, not the physical display's scanout. It is disabled
 by default and does not alter gameplay inputs.
 

@@ -20,5 +20,23 @@ int main() {
         last=x;
     }
     Check(previous==100 && current==132, "Rendering must never mutate authoritative coordinates");
+    TickSample<unsigned> sample;
+    sample.Begin(100); sample.End(132);
+    const double halfway=Position(sample.previous,sample.current,.5);
+    sample.Begin(132); // Main_Loop renders input before the next Logic.AI call.
+    Check(Position(sample.previous,sample.current,.5)==halfway,
+          "Beginning a simulation tick must not replace the published interpolation endpoints");
+    sample.End(164);
+    Check(sample.previous==132 && sample.current==164,
+          "Completed logic must publish both new endpoints together");
+    Timeline timeline;
+    timeline.Record(0,0,0); timeline.Record(.050,10,0); timeline.Record(.133,20,0); timeline.Record(.183,30,0);
+    double prior=0;
+    for (int frame=0;frame<22;++frame) {
+        const auto point=Sample_Timeline(timeline.Points(),frame/120.0);
+        Check(point.x>=prior && point.x-prior<1.7, "Uneven logic intervals must not produce position jumps or reversals");
+        prior=point.x;
+    }
+    Check(Sample_Timeline(timeline.Points(),10).x==30, "Buffered timeline must not extrapolate a stalled game");
     std::puts("motion interpolation: all checks passed");
 }

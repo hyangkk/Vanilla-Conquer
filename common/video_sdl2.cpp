@@ -147,8 +147,10 @@ public:
             unsigned char rgba[4]={palette->colors[i].r,palette->colors[i].g,palette->colors[i].b,255};
             std::memcpy(&colors[i],rgba,4);
         }
+        const auto presentation=std::chrono::steady_clock::now();
+        RenderLayers::frame.presentation_time=std::chrono::duration<double>(presentation.time_since_epoch()).count();
         const double fraction=MotionInterpolation::Fraction(
-            std::chrono::duration<double>(std::chrono::steady_clock::now()-frame.tick_start).count(),frame.duration);
+            std::chrono::duration<double>(presentation-frame.tick_start).count(),frame.duration);
         const float scale_x=float(width)/frame.width, scale_y=float(height)/frame.height;
         const auto& pixels=RenderLayers::Compose(width,height,colors,fraction);
         if (SDL_UpdateTexture(texture,nullptr,pixels.data(),width*4)!=0) return false;
@@ -162,21 +164,28 @@ public:
             const char* path = std::getenv("VANILLA_MOTION_TRACE");
             if (path && *path) {
                 trace = std::fopen(path, "w");
-                if (trace) std::fprintf(trace, "time_us,logical_tick,fraction,layer,x,y,scale_x,scale_y\n");
+                if (trace) std::fprintf(trace, "time_us,logical_tick,fraction,object,x,y,scale_x,scale_y,simulation_pending,raster_hash\n");
             }
         }
-        if (trace && trace_frames < 600) {
+        if (trace && trace_frames < 1800) {
             for (size_t i = 0; i < frame.layers.size(); ++i) {
                 const auto& layer = frame.layers[i];
-                if (std::abs(layer.start_x-layer.end_x) + std::abs(layer.start_y-layer.end_y) < 0.01) continue;
-                double dx = layer.start_x + (layer.end_x-layer.start_x) * fraction;
-                double dy = layer.start_y + (layer.end_y-layer.start_y) * fraction;
+                if (!layer.selected || !layer.object) continue;
+                double dx,dy; RenderLayers::Offset(layer,fraction,dx,dy);
+                uint64_t raster_hash=1469598103934665603ULL;
+                const int left=std::max(0,int((layer.x-8)*scale_x));
+                const int top=std::max(0,int((layer.y-8)*scale_y));
+                const int right=std::min(width,int((layer.x+layer.width+8)*scale_x));
+                const int bottom=std::min(height,int((layer.y+layer.height+8)*scale_y));
+                for (int y=top;y<bottom;++y) for(int x=left;x<right;++x)
+                    raster_hash=(raster_hash^pixels[y*width+x])*1099511628211ULL;
                 auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now().time_since_epoch()).count();
-                std::fprintf(trace, "%lld,%lu,%.6f,%zu,%.6f,%.6f,%.3f,%.3f\n", (long long)time,
-                             frame.logical_tick, fraction, i, (layer.x+dx)*scale_x, (layer.y+dy)*scale_y, scale_x, scale_y);
+                std::fprintf(trace, "%lld,%lu,%.6f,%u,%.6f,%.6f,%.3f,%.3f,%d,%llu\n", (long long)time,
+                             frame.logical_tick, fraction, layer.object, (layer.anchor_x+dx)*scale_x, (layer.anchor_y+dy)*scale_y,
+                             scale_x, scale_y, int(frame.simulation_pending),static_cast<unsigned long long>(raster_hash));
                 std::fflush(trace);
-                if (++trace_frames == 600) { std::fclose(trace); trace = nullptr; }
+                if (++trace_frames == 1800) { std::fclose(trace); trace = nullptr; }
                 break;
             }
         }

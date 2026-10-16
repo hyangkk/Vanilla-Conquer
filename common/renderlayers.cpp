@@ -40,6 +40,10 @@ unsigned short Effect_ID(const std::array<unsigned char,256>& table)
 }
 int left, top, right, bottom;
 double start_x, start_y, end_x, end_y;
+unsigned int object_key;
+double anchor_x, anchor_y;
+bool selected;
+std::vector<MotionInterpolation::Point> object_timeline;
 
 void Clear_Mask()
 {
@@ -59,6 +63,7 @@ void Add_Layer()
     Layer layer;
     layer.x = left; layer.y = top; layer.width = right - left + 1; layer.height = bottom - top + 1;
     layer.start_x = start_x; layer.start_y = start_y; layer.end_x = end_x; layer.end_y = end_y;
+    layer.object = object_key; layer.anchor_x = anchor_x; layer.anchor_y = anchor_y; layer.selected = selected; layer.timeline = object_timeline;
     layer.pixels.resize(layer.width * layer.height);
     layer.mask.resize(layer.pixels.size());
     layer.effects.resize(layer.pixels.size());
@@ -91,11 +96,14 @@ void Begin(GraphicViewPortClass& view, int x, int y, int width, int height)
     recording = foreground = false;
     Snapshot(frame.background);
 }
-void Begin_Object(double sx, double sy, double ex, double ey)
+void Begin_Object(double sx, double sy, double ex, double ey, unsigned int object,
+                  double ax, double ay, bool is_selected, const std::vector<MotionInterpolation::Point>* timeline)
 {
     if (!frame.capturing || foreground) return;
     Clear_Mask();
     start_x = sx; start_y = sy; end_x = ex; end_y = ey;
+    object_key = object; anchor_x = ax; anchor_y = ay; selected = is_selected;
+    object_timeline = timeline ? *timeline : std::vector<MotionInterpolation::Point>();
     recording = true;
 }
 void End_Object()
@@ -110,6 +118,7 @@ void Begin_Foreground()
     Snapshot(before_foreground);
     Clear_Mask();
     start_x = start_y = end_x = end_y = 0;
+    object_key = 0; anchor_x = anchor_y = 0; selected = false; object_timeline.clear();
     recording = foreground = true;
 }
 void Mark(const unsigned char* destination, int width, int height, int pitch,
@@ -182,6 +191,19 @@ void Finish()
     frame.capturing = foreground = false;
     frame.ready = frame.supported;
 }
+void Offset(const Layer& layer, double fraction, double& x, double& y)
+{
+    if (!layer.timeline.empty()) {
+        const double start=std::chrono::duration<double>(frame.tick_start.time_since_epoch()).count();
+        const double time=(frame.presentation_time>0 ? frame.presentation_time : start+fraction*frame.duration)-frame.motion_delay;
+        const auto point=MotionInterpolation::Sample_Timeline(layer.timeline,time);
+        x=point.x-layer.anchor_x; y=point.y-layer.anchor_y;
+    } else {
+        x=layer.start_x+(layer.end_x-layer.start_x)*fraction;
+        y=layer.start_y+(layer.end_y-layer.start_y)*fraction;
+    }
+}
+
 const std::vector<uint32_t>& Compose(int width, int height, const uint32_t* palette, double fraction)
 {
     static std::vector<uint32_t> background, output;
@@ -219,8 +241,8 @@ const std::vector<uint32_t>& Compose(int width, int height, const uint32_t* pale
     };
     fraction = std::max(0.0,std::min(1.0,fraction));
     for (const auto& layer: frame.layers) {
-        const double dx=(layer.start_x+(layer.end_x-layer.start_x)*fraction)*sx;
-        const double dy=(layer.start_y+(layer.end_y-layer.start_y)*fraction)*sy;
+        double offset_x, offset_y; Offset(layer,fraction,offset_x,offset_y);
+        const double dx=offset_x*sx, dy=offset_y*sy;
         const double origin_x=layer.x*sx+dx, origin_y=layer.y*sy+dy;
         int left=std::max(int(std::floor(origin_x))-1,int(std::ceil(frame.clip_x*sx)));
         int top=std::max(int(std::floor(origin_y))-1,int(std::ceil(frame.clip_y*sy)));

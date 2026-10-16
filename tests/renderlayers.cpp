@@ -108,6 +108,18 @@ int main() {
     const auto quarter=RenderLayers::Compose(16,16,palette,.25);
     const auto half=RenderLayers::Compose(16,16,palette,.5);
     Check(quarter[2*16+2]==palette[201] && half[2*16+2]==palette[148], "Subpixel output must change before a whole source pixel of movement");
+    RenderLayers::Layer tracked;
+    tracked.anchor_x=20; tracked.anchor_y=0;
+    tracked.timeline={{0,0,0},{.05,10,0},{.133,20,0},{.183,30,0}};
+    RenderLayers::frame.motion_delay=.1;
+    RenderLayers::frame.presentation_time=.213;
+    double ox,oy; RenderLayers::Offset(tracked,1,ox,oy);
+    Check(std::abs((tracked.anchor_x+ox)-(10+(.113-.05)/(.133-.05)*10))<1e-6,
+          "A late presentation must use its actual timestamp rather than the clamped previous tick phase");
+    double position=tracked.anchor_x+ox;
+    tracked.anchor_x=30; RenderLayers::Offset(tracked,0,ox,oy);
+    Check(std::abs(tracked.anchor_x+ox-position)<1e-6,
+          "Replacing the scene raster must not jump the displayed world position");
     gb.Unlock();
     std::puts("raster layer reconstruction and coverage: all checks passed");
 }

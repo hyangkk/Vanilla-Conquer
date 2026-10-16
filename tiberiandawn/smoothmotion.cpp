@@ -19,10 +19,11 @@
 
 namespace {
 using Clock = std::chrono::steady_clock;
-struct Sample { COORDINATE previous; COORDINATE current; unsigned long generation; };
+struct Sample : MotionInterpolation::TickSample<COORDINATE> { unsigned long generation = 0; MotionInterpolation::Timeline timeline; };
 std::unordered_map<const ObjectClass*, Sample> samples;
-Clock::time_point tick_start;
-double tick_duration = 0.0;
+Clock::time_point tick_start, pending_tick_start;
+double tick_duration = 0.0, pending_tick_duration = 0.0;
+bool simulation_pending = false;
 unsigned long generation = 0;
 bool enabled = false;
 
@@ -37,6 +38,7 @@ void Smooth_Motion_Reset()
 {
     samples.clear();
     enabled = false;
+    simulation_pending = false;
     RenderLayers::Invalidate();
 }
 
@@ -54,17 +56,18 @@ void Smooth_Motion_Begin_Tick(int timer_ticks)
     enabled = Settings.Video.SmoothMotion && timer_ticks > 0 && !Debug_Map && !ScenarioInit;
     if (!enabled) {
         samples.clear();
-            return;
+        return;
     }
-    tick_start = Clock::now();
-    tick_duration = timer_ticks / 60.0;
+    pending_tick_start = Clock::now();
+    pending_tick_duration = timer_ticks / 60.0;
+    simulation_pending = true;
     ++generation;
     for (LayerType layer = LAYER_GROUND; layer < LAYER_COUNT; layer++) {
         for (int i = 0; i < Map.Layer[layer].Count(); ++i) {
             ObjectClass* object = Map.Layer[layer][i];
             if (Mobile(object) && !object->IsInLimbo && object->IsDown) {
                 Sample& sample = samples[object];
-                sample.previous = sample.current = object->Render_Coord();
+                sample.Begin(object->Render_Coord());
                 sample.generation = generation;
             }
         }
@@ -80,15 +83,26 @@ void Smooth_Motion_End_Tick()
             continue;
         }
         Sample& sample = it->second;
-        sample.current = it->first->Render_Coord();
+        sample.End(it->first->Render_Coord());
         // Spawning, teleportation and large discontinuities must snap, never sweep across the map.
         if (!MotionInterpolation::Continuous(Coord_X(sample.previous), Coord_Y(sample.previous),
                                              Coord_X(sample.current), Coord_Y(sample.current), ICON_LEPTON_W)) {
             sample.previous = sample.current;
+            sample.timeline.Clear();
         }
+        const double time=std::chrono::duration<double>(pending_tick_start.time_since_epoch()).count();
+        const double scale=double(ICON_PIXEL_W)/ICON_LEPTON_W;
+        if (!sample.timeline.Points().empty() && time-sample.timeline.Points().back().time>std::max(.25,pending_tick_duration*3))
+            sample.timeline.Clear();
+        if (sample.timeline.Points().empty())
+            sample.timeline.Record(time-pending_tick_duration,Coord_X(sample.previous)*scale,Coord_Y(sample.previous)*scale);
+        sample.timeline.Record(time,Coord_X(sample.current)*scale,Coord_Y(sample.current)*scale);
         ++it;
     }
     if (enabled) {
+        tick_start = pending_tick_start;
+        tick_duration = pending_tick_duration;
+        simulation_pending = false;
         Map.Flag_To_Redraw(true);
     }
 }
@@ -98,7 +112,9 @@ void Smooth_Motion_Scene_Begin()
     // Publish timing together with the new raster layers, never retime the previous scene.
     RenderLayers::frame.tick_start = tick_start;
     RenderLayers::frame.duration = tick_duration;
+    RenderLayers::frame.motion_delay = std::max(.1,tick_duration*1.5);
     RenderLayers::frame.logical_tick = Frame;
+    RenderLayers::frame.simulation_pending = simulation_pending;
 }
 
 bool Smooth_Motion_Render_Enabled()
@@ -125,7 +141,9 @@ void Smooth_Motion_Object_Begin(const ObjectClass* object, unsigned int coordina
         ex = Coord_X(coordinate) * scale - x;
         ey = Coord_Y(coordinate) * scale - y;
     }
-    RenderLayers::Begin_Object(sx, sy, ex, ey);
+    RenderLayers::Begin_Object(sx, sy, ex, ey, static_cast<unsigned int>(object->As_Target()),
+                               Lepton_To_Pixel(Coord_X(coordinate)), Lepton_To_Pixel(Coord_Y(coordinate)),
+                               object->Is_Selected_By_Player(), it != samples.end() ? &it->second.timeline.Points() : nullptr);
 }
 void Smooth_Motion_Object_End()
 {
