@@ -159,6 +159,7 @@ public:
         static FILE* trace = nullptr;
         static bool trace_checked = false;
         static int trace_frames = 0;
+        static bool trace_started = false;
         if (!trace_checked) {
             trace_checked = true;
             const char* path = std::getenv("VANILLA_MOTION_TRACE");
@@ -171,6 +172,12 @@ public:
             for (size_t i = 0; i < frame.layers.size(); ++i) {
                 const auto& layer = frame.layers[i];
                 if (!layer.selected || !layer.object) continue;
+                if (!trace_started) {
+                    const auto& history=layer.timeline;
+                    if (history.size()<2 || (history.back().x==history[history.size()-2].x &&
+                                             history.back().y==history[history.size()-2].y)) continue;
+                    trace_started=true;
+                }
                 double dx,dy; RenderLayers::Offset(layer,fraction,dx,dy);
                 uint64_t raster_hash=1469598103934665603ULL;
                 const int left=std::max(0,int((layer.x-8)*scale_x));
