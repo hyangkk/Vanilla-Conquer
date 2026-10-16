@@ -1,3 +1,4 @@
+#include "renderlayers.h"
 // TiberianDawn.DLL and RedAlert.dll and corresponding source code is free
 // software: you can redistribute it and/or modify it under the terms of
 // the GNU General Public License as published by the Free Software Foundation,
@@ -31,8 +32,10 @@ void Buffer_Put_Pixel(void* thisptr, int x, int y, unsigned char color)
     GraphicViewPortClass& vp = *static_cast<GraphicViewPortClass*>(thisptr);
 
     if ((unsigned)x < (unsigned)vp.Get_Width() && (unsigned)y < (unsigned)vp.Get_Height()) {
-        *(reinterpret_cast<unsigned char*>(vp.Get_Offset()) + x
-          + y * (vp.Get_Pitch() + vp.Get_XAdd() + vp.Get_Width())) = color;
+        unsigned char* pixel = reinterpret_cast<unsigned char*>(vp.Get_Offset()) + x
+                               + y * (vp.Get_Pitch() + vp.Get_XAdd() + vp.Get_Width());
+        RenderLayers::Mark(pixel, 1, 1, vp.Get_Pitch() + vp.Get_XAdd() + vp.Get_Width());
+        *pixel = color;
     }
 }
 
@@ -61,6 +64,7 @@ void Buffer_Fill_Rect(void* thisptr, int sx, int sy, int dx, int dy, unsigned ch
         sy * (vp.Get_Pitch() + vp.Get_XAdd() + vp.Get_Width()) + sx + reinterpret_cast<unsigned char*>(vp.Get_Offset());
     int height = dy - sy + 1;
     int width = dx - sx + 1;
+    RenderLayers::Mark(offset, width, height, vp.Get_Pitch() + vp.Get_XAdd() + vp.Get_Width());
 
     for (int i = 0; i < height; ++i) {
         memset(offset, color, width);

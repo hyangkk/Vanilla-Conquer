@@ -1,3 +1,4 @@
+#include "common/renderlayers.h"
 //
 // Copyright 2020 Electronic Arts Inc.
 //
@@ -45,6 +46,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "smoothmotion.h"
 
 #include "common/filepcx.h"
 
@@ -367,7 +369,7 @@ void GScreenClass::Render(void)
 
         // WWMouse->Erase_Mouse(&HidPage, TRUE);
         GraphicViewPortClass* oldpage = Set_Logic_Page(HidPage);
-        Draw_It(IsToRedraw);
+        Draw_It(IsToRedraw || Smooth_Motion_Render_Enabled());
 
         if (Buttons)
             Buttons->Draw_All(false);
@@ -392,7 +394,10 @@ void GScreenClass::Render(void)
         Messages.Draw();
 
 #ifndef REMASTER_BUILD
+        RenderLayers::Finish();
+        RenderLayers::frame.publishing = RenderLayers::frame.ready;
         Blit_Display();
+        RenderLayers::frame.publishing = false;
 #endif
         IsToUpdate = false;
         IsToRedraw = false;

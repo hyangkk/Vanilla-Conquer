@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "smoothmotion.h"
 #include "common/framelimit.h"
 
 extern int PreserveVQAScreen;
@@ -346,6 +347,7 @@ void Fill_In_Data(void)
  *=============================================================================================*/
 void Clear_Scenario(void)
 {
+    Smooth_Motion_Reset();
     EndCountDown = TICKS_PER_SECOND * 30;
     CrateCount = 0;
     CrateTimer = 0;

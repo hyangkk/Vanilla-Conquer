@@ -46,6 +46,11 @@
 #include "debugstring.h"
 
 #include <SDL.h>
+#include "renderlayers.h"
+#include "motioninterpolation.h"
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 
 extern WWKeyboardClass* Keyboard;
 static SDL_Window* window;
@@ -53,6 +58,7 @@ static SDL_Renderer* renderer;
 static SDL_Palette* palette;
 static Uint32 pixel_format;
 static SDL_Rect render_dst;
+static unsigned long smooth_palette_revision = 0;
 
 static struct
 {
@@ -116,6 +122,161 @@ Uint32 SettingsPixelFormat()
 
     return SDL_PIXELFORMAT_UNKNOWN;
 }
+
+// Rasterize the original sprites once per game tick, then compose at the display rate.
+// Floating-point destination rectangles retain subpixel motion after pixel-art upscaling.
+class SmoothCompositor
+{
+    struct Texture {
+        SDL_Texture* value = nullptr;
+        SDL_Texture* scaled = nullptr;
+        int scaled_width = 0, scaled_height = 0;
+        int width = 0, height = 0;
+    };
+    std::vector<Texture> textures;
+    std::vector<unsigned char> rgba;
+    unsigned long last_serial = 0, last_palette = 0;
+    int last_width = 0, last_height = 0;
+    bool Scale(Texture& texture, int width, int height, float scale_x, float scale_y)
+    {
+        int w = int(std::ceil(width * scale_x)) + 2, h = int(std::ceil(height * scale_y)) + 2;
+        if (!texture.scaled || texture.scaled_width < w || texture.scaled_height < h) {
+            if (texture.scaled) SDL_DestroyTexture(texture.scaled);
+            texture.scaled_width = 64; texture.scaled_height = 64;
+            while (texture.scaled_width < w) texture.scaled_width *= 2;
+            while (texture.scaled_height < h) texture.scaled_height *= 2;
+            texture.scaled = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET,
+                                               texture.scaled_width, texture.scaled_height);
+            if (!texture.scaled) return false;
+            SDL_SetTextureBlendMode(texture.scaled, SDL_ComposeCustomBlendMode(
+                SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA, SDL_BLENDOPERATION_ADD,
+                SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA, SDL_BLENDOPERATION_ADD));
+            SDL_SetTextureScaleMode(texture.scaled, SDL_ScaleModeLinear);
+        }
+        if (SDL_SetRenderTarget(renderer, texture.scaled) != 0) return false;
+        SDL_RenderSetClipRect(renderer, nullptr);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        SDL_RenderClear(renderer);
+        SDL_Rect src = {0, 0, width, height};
+        SDL_FRect dst = {1, 1, width * scale_x, height * scale_y};
+        SDL_RenderCopyF(renderer, texture.value, &src, &dst);
+        SDL_SetRenderTarget(renderer, nullptr);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        return true;
+    }
+    bool Upload(Texture& texture, int width, int height, const std::vector<unsigned char>& pixels,
+                const std::vector<unsigned char>* mask)
+    {
+        if (!texture.value || texture.width < width || texture.height < height) {
+            if (texture.value) SDL_DestroyTexture(texture.value);
+            texture.width = 64; texture.height = 64;
+            while (texture.width < width) texture.width *= 2;
+            while (texture.height < height) texture.height *= 2;
+            texture.value = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
+                                              texture.width, texture.height);
+            if (!texture.value) return false;
+            SDL_SetTextureBlendMode(texture.value, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(texture.value, SDL_ScaleModeNearest);
+        }
+        rgba.resize(width * height * 4);
+        for (int i = 0; i < width * height; ++i) {
+            const SDL_Color& color = palette->colors[pixels[i]];
+            rgba[i*4] = color.r; rgba[i*4+1] = color.g; rgba[i*4+2] = color.b;
+            rgba[i*4+3] = !mask || (*mask)[i] ? 255 : 0;
+        }
+        SDL_Rect rect = {0, 0, width, height};
+        return SDL_UpdateTexture(texture.value, &rect, rgba.data(), width * 4) == 0;
+    }
+public:
+    ~SmoothCompositor() { Clear(); }
+    void Clear() {
+        for (auto& texture : textures) {
+            if (texture.value) SDL_DestroyTexture(texture.value);
+            if (texture.scaled) SDL_DestroyTexture(texture.scaled);
+        }
+        textures.clear();
+        last_serial = 0;
+    }
+    bool Render()
+    {
+        const auto& frame = RenderLayers::frame;
+        if (!frame.ready || !Settings.Video.SmoothMotion || frame.width <= 0 || frame.height <= 0) return false;
+        textures.resize(std::max(textures.size(), frame.layers.size() + 1));
+        const float scale_x = float(render_dst.w) / frame.width, scale_y = float(render_dst.h) / frame.height;
+        bool refresh = frame.serial != last_serial || smooth_palette_revision != last_palette ||
+                       render_dst.w != last_width || render_dst.h != last_height;
+        if (refresh) {
+            if (!Upload(textures[0], frame.width, frame.height, frame.background, nullptr)) return false;
+            for (size_t i = 0; i < frame.layers.size(); ++i) {
+                const auto& layer = frame.layers[i];
+                if (!Upload(textures[i+1], layer.width, layer.height, layer.pixels, &layer.mask) ||
+                    !Scale(textures[i+1], layer.width, layer.height, scale_x, scale_y)) return false;
+            }
+            last_serial = frame.serial; last_palette = smooth_palette_revision;
+            last_width = render_dst.w; last_height = render_dst.h;
+        }
+        SDL_Rect source = {0, 0, frame.width, frame.height};
+        SDL_RenderCopy(renderer, textures[0].value, &source, &render_dst);
+        const double fraction = MotionInterpolation::Fraction(
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - frame.tick_start).count(), frame.duration);
+        SDL_Rect clip = {render_dst.x + int(frame.clip_x * scale_x), render_dst.y + int(frame.clip_y * scale_y),
+                         int(frame.clip_w * scale_x), int(frame.clip_h * scale_y)};
+        SDL_RenderSetClipRect(renderer, &clip);
+        for (size_t i = 0; i < frame.layers.size(); ++i) {
+            const auto& layer = frame.layers[i];
+            double dx = layer.start_x + (layer.end_x - layer.start_x) * fraction;
+            double dy = layer.start_y + (layer.end_y - layer.start_y) * fraction;
+            // Upscale with nearest sampling first. Linear sampling at output resolution then
+            // blends only a display pixel at moving edges, rather than blurring the original art.
+            SDL_Rect src = {0, 0, int(std::ceil(layer.width*scale_x))+2, int(std::ceil(layer.height*scale_y))+2};
+            SDL_FRect dst = {float(render_dst.x + (layer.x + dx) * scale_x - 1),
+                             float(render_dst.y + (layer.y + dy) * scale_y - 1),
+                             float(src.w), float(src.h)};
+            SDL_RenderCopyF(renderer, textures[i+1].scaled, &src, &dst);
+        }
+        SDL_RenderSetClipRect(renderer, nullptr);
+        // Opt-in, bounded diagnostic trace of actual presentation calls, never simulation inputs.
+        static FILE* trace = nullptr;
+        static bool trace_checked = false;
+        static int trace_frames = 0;
+        if (!trace_checked) {
+            trace_checked = true;
+            const char* path = std::getenv("VANILLA_MOTION_TRACE");
+            if (path && *path) {
+                trace = std::fopen(path, "w");
+                if (trace) std::fprintf(trace, "time_us,logical_tick,fraction,layer,x,y,scale_x,scale_y\n");
+            }
+        }
+        if (trace && trace_frames < 600) {
+            for (size_t i = 0; i < frame.layers.size(); ++i) {
+                const auto& layer = frame.layers[i];
+                if (std::abs(layer.start_x-layer.end_x) + std::abs(layer.start_y-layer.end_y) < 0.01) continue;
+                double dx = layer.start_x + (layer.end_x-layer.start_x) * fraction;
+                double dy = layer.start_y + (layer.end_y-layer.start_y) * fraction;
+                auto time = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+                std::fprintf(trace, "%lld,%lu,%.6f,%zu,%.6f,%.6f,%.3f,%.3f\n", (long long)time,
+                             frame.logical_tick, fraction, i, (layer.x+dx)*scale_x, (layer.y+dy)*scale_y, scale_x, scale_y);
+                std::fflush(trace);
+                if (++trace_frames == 600) { std::fclose(trace); trace = nullptr; }
+                break;
+            }
+        }
+        if (!Settings.Video.HardwareCursor && !Get_Mouse_State() && hwcursor.Surface) {
+            SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
+            if (cursor) {
+                int x, y; Get_Video_Mouse(x, y);
+                SDL_FRect dst = {render_dst.x + (x-hwcursor.HotX)*scale_x,
+                                 render_dst.y + (y-hwcursor.HotY)*scale_y,
+                                 hwcursor.Surface->w*scale_x, hwcursor.Surface->h*scale_y};
+                SDL_RenderCopyF(renderer, cursor, nullptr, &dst);
+                SDL_DestroyTexture(cursor);
+            }
+        }
+        return true;
+    }
+};
+static SmoothCompositor smooth_compositor;
 
 static void Update_HWCursor();
 
@@ -488,6 +649,8 @@ void Reset_Video_Mode(void)
         hwcursor.Surface = nullptr;
     }
 
+    smooth_compositor.Clear();
+    RenderLayers::Invalidate();
     SDL_DestroyRenderer(renderer);
     renderer = nullptr;
 
@@ -663,6 +826,7 @@ void Set_DD_Palette(void* rpalette)
     colors[0].a = 0;
 
     SDL_SetPaletteColors(palette, colors, 0, 256);
+    ++smooth_palette_revision;
 
     /*
     ** Cursor needs to be updated when palette changes.
@@ -785,11 +949,13 @@ public:
 
     virtual void Blt(const Rect& destRect, VideoSurface* src, const Rect& srcRect, bool mask)
     {
+        if (this == frontSurface) RenderLayers::Invalidate();
         SDL_BlitSurface(((VideoSurfaceSDL2*)src)->surface, (SDL_Rect*)(&srcRect), surface, (SDL_Rect*)&destRect);
     }
 
     virtual void FillRect(const Rect& rect, unsigned char color)
     {
+        if (this == frontSurface) RenderLayers::Invalidate();
         SDL_Rect rectSDL = {rect.X, rect.Y, rect.Width + 1, rect.Height + 1};
         SDL_FillRect(surface, &rectSDL, color);
     }
@@ -839,7 +1005,7 @@ public:
 
         SDL_UpdateTexture(texture, NULL, windowSurface->pixels, windowSurface->pitch);
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, &render_dst);
+        if (!smooth_compositor.Render()) SDL_RenderCopy(renderer, texture, NULL, &render_dst);
         SDL_RenderPresent(renderer);
     }
 

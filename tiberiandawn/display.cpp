@@ -1,3 +1,4 @@
+#include "common/renderlayers.h"
 //
 // Copyright 2020 Electronic Arts Inc.
 //
@@ -76,6 +77,7 @@
  *   DisplayClass::Prev_Object -- Searches for the previous object on the map.                 *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 #include "function.h"
+#include "smoothmotion.h"
 #include "common/fading.h"
 #include "ccini.h"
 
@@ -2376,6 +2378,11 @@ void DisplayClass::Draw_It(bool forced)
             **	Redraw the game objects layer by layer. The layer drawing occurs on the ground layer
             **	first and then followed by all the layers in increasing altituded.
             */
+            if (Smooth_Motion_Render_Enabled()) {
+                RenderLayers::Begin(HidPage, WindowList[WINDOW_TACTICAL][WINDOWX], WindowList[WINDOW_TACTICAL][WINDOWY],
+                                    WindowList[WINDOW_TACTICAL][WINDOWWIDTH], WindowList[WINDOW_TACTICAL][WINDOWHEIGHT]);
+                Smooth_Motion_Scene_Begin();
+            }
             for (LayerType layer = LAYER_GROUND; layer < LAYER_COUNT; layer++) {
                 for (int index = 0; index < Layer[layer].Count(); index++) {
                     Layer[layer][index]->Render(forced);
@@ -2386,6 +2393,7 @@ void DisplayClass::Draw_It(bool forced)
             **	Finally, redraw the shadow overlay as necessary.
             */
             // Colour_Debug(5);
+            RenderLayers::Begin_Foreground();
             Redraw_Shadow();
         }
 

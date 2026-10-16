@@ -73,6 +73,7 @@ set(COMMON_SRC
     random.cpp
     rawfile.cpp
     readline.cpp
+    renderlayers.cpp
     rect.cpp
     rgb.cpp
     rndstraw.cpp

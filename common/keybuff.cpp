@@ -1,3 +1,4 @@
+#include "renderlayers.h"
 // TiberianDawn.DLL and RedAlert.dll and corresponding source code is free
 // software: you can redistribute it and/or modify it under the terms of
 // the GNU General Public License as published by the Free Software Foundation,
@@ -1401,6 +1402,7 @@ void Buffer_Frame_To_Page(int x,
     int pitch = viewport.Get_XAdd() + viewport.Get_Width() + viewport.Get_Pitch();
     unsigned char* dst = ystart * pitch + xstart + reinterpret_cast<unsigned char*>(viewport.Get_Offset());
     unsigned char* src = frame_data + ms_img_offset;
+    RenderLayers::Mark(dst, blit_width, blit_height, pitch, src, width, (flags & SHAPE_TRANS) != 0);
     int dst_pitch = pitch - blit_width;
     int src_pitch = width - blit_width;
 

@@ -59,6 +59,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "smoothmotion.h"
 #include "common/irandom.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -1608,8 +1609,10 @@ bool Main_Loop()
     if (GameToPlay != GAME_NORMAL && GameToPlay != GAME_SKIRMISH && CommProtocol == COMM_PROTOCOL_MULTI_E_COMP) {
         framedelay = 60 / DesiredFrameRate;
         FrameTimer.Set(framedelay);
+        Smooth_Motion_Begin_Tick(framedelay);
     } else {
         FrameTimer.Set(Options.GameSpeed);
+        Smooth_Motion_Begin_Tick(Options.GameSpeed);
     }
 
     /*
@@ -1772,6 +1775,7 @@ bool Main_Loop()
         }
     }
 
+    Smooth_Motion_End_Tick();
     Sync_Delay();
     //	InMainLoop = false;
     return (!GameActive);

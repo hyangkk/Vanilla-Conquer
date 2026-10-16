@@ -99,6 +99,7 @@ set(TIBDAWN_SRC
     shapebtn.cpp
     sidebar.cpp
     slider.cpp
+    smoothmotion.cpp
     smudge.cpp
     sounddlg.cpp
     special.cpp
