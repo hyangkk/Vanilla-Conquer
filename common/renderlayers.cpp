@@ -196,7 +196,7 @@ void Offset(const Layer& layer, double fraction, double& x, double& y)
     if (!layer.timeline.empty()) {
         const double start=std::chrono::duration<double>(frame.tick_start.time_since_epoch()).count();
         const double time=(frame.presentation_time>0 ? frame.presentation_time : start+fraction*frame.duration)-frame.motion_delay;
-        const auto point=MotionInterpolation::Sample_Timeline(layer.timeline,time);
+        const auto point=MotionInterpolation::Smooth_Timeline(layer.timeline,time,frame.duration);
         x=point.x-layer.anchor_x; y=point.y-layer.anchor_y;
     } else {
         x=layer.start_x+(layer.end_x-layer.start_x)*fraction;

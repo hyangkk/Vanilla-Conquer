@@ -63,6 +63,29 @@ inline Point Sample_Timeline(const std::vector<Point>& points, double time) {
     return points.back(); // Stalls pause visually; never extrapolate through blockers.
 }
 
+inline Point Smooth_Timeline(const std::vector<Point>& points, double time, double radius) {
+    if (points.empty() || radius<=0) return Sample_Timeline(points,time);
+    // Integrate the piecewise-linear path over a bounded window. Short original
+    // movement pauses become gradual velocity changes, with no extrapolation or
+    // feedback into game coordinates. Constant endpoints also prevent overshoot.
+    const double begin=time-radius, end=time+radius;
+    if (begin>=points.back().time) return points.back();
+    if (end<=points.front().time) return points.front();
+    double cursor=begin, x=0, y=0;
+    Point a=Sample_Timeline(points,cursor);
+    for (const auto& point:points) {
+        if (point.time<=cursor || point.time>=end) continue;
+        const double duration=point.time-cursor;
+        x+=(a.x+point.x)*.5*duration;
+        y+=(a.y+point.y)*.5*duration;
+        cursor=point.time; a=point;
+    }
+    const Point b=Sample_Timeline(points,end);
+    x+=(a.x+b.x)*.5*(end-cursor);
+    y+=(a.y+b.y)*.5*(end-cursor);
+    return {time,x/(2*radius),y/(2*radius)};
+}
+
 inline bool Continuous(int px, int py, int cx, int cy, int max_step)
 {
     return std::abs(cx - px) <= max_step && std::abs(cy - py) <= max_step;

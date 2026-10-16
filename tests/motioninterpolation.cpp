@@ -38,5 +38,14 @@ int main() {
         prior=point.x;
     }
     Check(Sample_Timeline(timeline.Points(),10).x==30, "Buffered timeline must not extrapolate a stalled game");
+    const std::vector<Point> short_stop={{0,0,0},{.067,2,0},{.134,4,0},{.201,4,0},{.268,6,0},{.335,8,0}};
+    double smoothed=Smooth_Timeline(short_stop,.14,.067).x;
+    for (int i=1;i<=7;++i) {
+        double next=Smooth_Timeline(short_stop,.14+i/120.0,.067).x;
+        Check(next>smoothed, "A one-tick movement plateau must not freeze the display trajectory");
+        Check(next>=0 && next<=8, "Display smoothing must remain inside the recorded path bounds");
+        smoothed=next;
+    }
+    Check(Smooth_Timeline(short_stop,10,.067).x==8, "Stopped units must settle at their exact authoritative destination");
     std::puts("motion interpolation: all checks passed");
 }

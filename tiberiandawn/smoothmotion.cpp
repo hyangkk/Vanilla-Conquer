@@ -112,7 +112,8 @@ void Smooth_Motion_Scene_Begin()
     // Publish timing together with the new raster layers, never retime the previous scene.
     RenderLayers::frame.tick_start = tick_start;
     RenderLayers::frame.duration = tick_duration;
-    RenderLayers::frame.motion_delay = std::max(.1,tick_duration*1.5);
+    // Keep the complete smoothing window behind published simulation history.
+    RenderLayers::frame.motion_delay = std::max(.15,tick_duration*2.5);
     RenderLayers::frame.logical_tick = Frame;
     RenderLayers::frame.simulation_pending = simulation_pending;
 }
