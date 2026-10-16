@@ -15,7 +15,8 @@ export, or a normal supported backend. Original game data is required.
 The exporter creates savegame.100 upward, checks every target before writing, loads
 each original scenario with normal difficulty and zero carryover credits, then saves
 at Frame 0 using Save_Game. It immediately reloads every file using Load_Game and
-checks mission root, frame, house, credits and counts for vehicles, infantry, buildings
+clears transient mode flags to simulate a cold load, then checks Jurassic mode,
+mission root, frame, house, credits and counts for vehicles, infantry, buildings
 and aircraft. Successful entries go in verified.tsv. Failure exits nonzero; partial
 output stays isolated and must not be installed as a complete collection.
 
@@ -28,4 +29,5 @@ The installed base-game data on the development Mac contains 56 single-player ro
 their own installed data. Saves are original map starts, without prior-mission carried
 money or campaign sabotage choices. They use the native save format and inherit the
 installed app's campaign tech option on load. The existing app can discover newly
-added saves by reopening Load Mission, without an executable rebuild/restart.
+added saves by reopening Load Mission. Jurassic saves also require the accompanying
+load fix, which restores the non-serialized mode flag from the loaded campaign.

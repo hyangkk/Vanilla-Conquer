@@ -488,6 +488,8 @@ bool Load_Game(const char* file_name)
 
     file.Close();
     Decode_All_Pointers();
+    // Jurassic mode is selected by the loaded campaign; it is not serialized in Special.
+    Special.IsJurassic = (ScenPlayer == SCEN_PLAYER_JP);
     Map.Init_IO();
     Map.Flag_To_Redraw(true);
 

@@ -58,8 +58,16 @@ bool Generate_Mission_Starts(const char* directory)
         std::snprintf(description,sizeof(description),"START %s %02d %c%c",root[2]=='G'?"GDI":root[2]=='B'?"NOD":"BONUS",
                       Scen.Scenario,root[5],root[6]);
         const std::string path=dir+"/"+filename;
-        if (!Save_Game(path.c_str(),description) || !Load_Game(path.c_str()) || !PlayerPtr || Frame!=0 ||
-            root!=Scen.ScenarioName || PlayerPtr->Class->House!=faction || PlayerPtr->Credits!=credits ||
+        if (!Save_Game(path.c_str(),description)) return false;
+        // Validate a cold load, not a load that inherits this scenario's mode flags.
+        Special.Init(); AreThingiesEnabled=false;
+        if (!Load_Game(path.c_str()) || !PlayerPtr || Frame!=0) return false;
+        if (bool(Special.IsJurassic)!=(root[2]=='J') || (root[2]=='J' && !AreThingiesEnabled)) {
+            std::fprintf(stderr,"Cold-load mode mismatch: %s Jurassic=%d assets=%d\n",root.c_str(),
+                         int(Special.IsJurassic),int(AreThingiesEnabled));
+            return false;
+        }
+        if (root!=Scen.ScenarioName || PlayerPtr->Class->House!=faction || PlayerPtr->Credits!=credits ||
             Units.Count()!=units || Infantry.Count()!=infantry || Buildings.Count()!=buildings || Aircraft.Count()!=aircraft)
             return false;
         report << filename << '\t' << root << '\t' << Frame << '\t' << credits << '\t' << units << '\t'
