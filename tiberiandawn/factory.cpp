@@ -728,6 +728,11 @@ bool FactoryClass::Completed(void)
 {
     Validate();
     if (Object && Fetch_Stage() == STEP_COUNT) {
+        // Award once, only after a locally produced infantry unit has entered play.
+        if (Object->What_Am_I() == RTTI_INFANTRY && House && House == PlayerPtr
+            && House->IsHuman && GameToPlay == GAME_NORMAL) {
+            House->Refund_Money(1000);
+        }
         Object = NULL;
         IsSuspended = true;
         IsDifferent = true;
