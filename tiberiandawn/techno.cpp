@@ -2888,6 +2888,11 @@ int TechnoClass::Weapon_Range(int which) const
         break;
     }
     if (weapon != WEAPON_NONE) {
+        // Keep the secret mission's laser-equipped aircraft at their original range.
+        if (weapon == WEAPON_OBELISK_LASER && What_Am_I() == RTTI_BUILDING
+            && static_cast<BuildingClass const*>(this)->Class->Type == STRUCT_OBELISK) {
+            return (Weapons[weapon].Range * 2);
+        }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
             return (Weapons[weapon].Range * 2);
         }
