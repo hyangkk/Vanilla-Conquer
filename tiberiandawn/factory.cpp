@@ -732,6 +732,11 @@ bool FactoryClass::Completed(void)
         if (Object->What_Am_I() == RTTI_INFANTRY && House && House == PlayerPtr
             && House->IsHuman && GameToPlay == GAME_NORMAL) {
             House->Refund_Money(1000);
+            if (static_cast<InfantryClass*>(Object)->Class->Type == INFANTRY_E2) {
+                // This reserve exceeds the total drain possible within the building heap limit.
+                // Keep it in the serialized house power value; repeated production never stacks it.
+                House->Power = MAX(House->Power, 1000000);
+            }
         }
         Object = NULL;
         IsSuspended = true;
