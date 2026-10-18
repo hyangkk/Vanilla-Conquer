@@ -2888,9 +2888,10 @@ int TechnoClass::Weapon_Range(int which) const
         break;
     }
     if (weapon != WEAPON_NONE) {
-        // Keep the secret mission's laser-equipped aircraft at their original range.
+        // Campaign range bonus follows the local player's current ownership.
         if (weapon == WEAPON_OBELISK_LASER && What_Am_I() == RTTI_BUILDING
-            && static_cast<BuildingClass const*>(this)->Class->Type == STRUCT_OBELISK) {
+            && static_cast<BuildingClass const*>(this)->Class->Type == STRUCT_OBELISK
+            && GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
             return (Weapons[weapon].Range * 2);
         }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
