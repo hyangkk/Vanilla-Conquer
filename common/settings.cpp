@@ -25,6 +25,8 @@ SettingsClass::SettingsClass()
     Video.Windowed = false;
     Video.Width = 0;
     Video.Height = 0;
+    Video.GameWidth = 640;
+    Video.GameHeight = 400;
     Video.Boxing = true;
     Video.BoxingAspectRatio = "16:10";
     Video.FrameLimit = 120;
@@ -65,6 +67,8 @@ void SettingsClass::Load(INIClass& ini)
     Video.BoxingAspectRatio = ini.Get_String("Video", "BoxingAspectRatio", Video.BoxingAspectRatio);
     Video.Width = ini.Get_Int("Video", "Width", Video.Width);
     Video.Height = ini.Get_Int("Video", "Height", Video.Height);
+    Video.GameWidth = Bound(ini.Get_Int("Video", "GameWidth", Video.GameWidth), 640, 1280);
+    Video.GameHeight = Bound(ini.Get_Int("Video", "GameHeight", Video.GameHeight), 400, 800);
     Video.FrameLimit = ini.Get_Int("Video", "FrameLimit", Video.FrameLimit);
     Video.HardwareCursor = ini.Get_Bool("Video", "HardwareCursor", Video.HardwareCursor);
     Video.DOSMode = ini.Get_Bool("Video", "DOSMode", Video.DOSMode);
@@ -117,6 +121,8 @@ void SettingsClass::Save(INIClass& ini)
     ini.Put_String("Video", "BoxingAspectRatio", Video.BoxingAspectRatio);
     ini.Put_Int("Video", "Width", Video.Width);
     ini.Put_Int("Video", "Height", Video.Height);
+    ini.Put_Int("Video", "GameWidth", Video.GameWidth);
+    ini.Put_Int("Video", "GameHeight", Video.GameHeight);
     ini.Put_Int("Video", "FrameLimit", Video.FrameLimit);
     ini.Put_Bool("Video", "HardwareCursor", Video.HardwareCursor);
     ini.Put_Bool("Video", "DOSMode", Video.DOSMode);

@@ -144,7 +144,7 @@ void PowerClass::Configure_Power_Layout(void)
         PowY = Map.RadY + Map.RadHeight + (13 << factor);
     }
     PowWidth = 8 << factor;
-    PowHeight = SeenBuff.Get_Height() - PowY;
+    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY;
     PowLineSpace = 5 << factor;
     PowLineWidth = PowWidth - 4;
 

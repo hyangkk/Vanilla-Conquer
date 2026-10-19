@@ -136,8 +136,15 @@ public:
     {
         const auto& frame=RenderLayers::frame;
         if (!frame.ready || !Settings.Video.SmoothMotion || frame.width<=0 || frame.height<=0) return false;
-        if (!texture || width!=render_dst.w || height!=render_dst.h) {
-            Clear(); width=render_dst.w; height=render_dst.h;
+        int window_w, window_h, output_w, output_h;
+        SDL_GetWindowSize(window, &window_w, &window_h);
+        SDL_GetRendererOutputSize(renderer, &output_w, &output_h);
+        // Keep world interpolation at its previous working resolution. Native
+        // sidebar art is overlaid by SDL at the full Retina output resolution.
+        const int world_w = std::max(1, render_dst.w * window_w / std::max(1, output_w));
+        const int world_h = std::max(1, render_dst.h * window_h / std::max(1, output_h));
+        if (!texture || width!=world_w || height!=world_h) {
+            Clear(); width=world_w; height=world_h;
             texture=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA32,SDL_TEXTUREACCESS_STREAMING,width,height);
             if (!texture) return false;
             SDL_SetTextureScaleMode(texture,SDL_ScaleModeNearest);
@@ -196,17 +203,6 @@ public:
                 break;
             }
         }
-        if (!Settings.Video.HardwareCursor && !Get_Mouse_State() && hwcursor.Surface) {
-            SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
-            if (cursor) {
-                int x, y; Get_Video_Mouse(x, y);
-                SDL_FRect dst = {render_dst.x + (x-hwcursor.HotX)*scale_x,
-                                 render_dst.y + (y-hwcursor.HotY)*scale_y,
-                                 hwcursor.Surface->w*scale_x, hwcursor.Surface->h*scale_y};
-                SDL_RenderCopyF(renderer, cursor, nullptr, &dst);
-                SDL_DestroyTexture(cursor);
-            }
-        }
         return true;
     }
 };
@@ -221,8 +217,11 @@ static void Update_HWCursor_Settings()
     */
     int win_w, win_h;
     SDL_GetRendererOutputSize(renderer, &win_w, &win_h);
-    hwcursor.ScaleX = win_w / (float)hwcursor.GameW;
-    hwcursor.ScaleY = win_h / (float)hwcursor.GameH;
+    int mouse_w, mouse_h;
+    SDL_GetWindowSize(window, &mouse_w, &mouse_h);
+    // SDL mouse coordinates and native cursor sizes use window points, not Retina pixels.
+    hwcursor.ScaleX = mouse_w / (float)hwcursor.GameW;
+    hwcursor.ScaleY = mouse_h / (float)hwcursor.GameH;
 
     /*
     ** Update screen boxing settings.
@@ -316,7 +315,7 @@ bool Set_Video_Mode(int w, int h, int bits_per_pixel)
 
     int win_w = w;
     int win_h = h;
-    int win_flags = 0;
+    int win_flags = SDL_WINDOW_ALLOW_HIGHDPI;
     Uint32 requested_pixel_format = SettingsPixelFormat();
 
     if (!Settings.Video.Windowed) {
@@ -928,29 +927,13 @@ public:
             ** Update hardware cursor visibility.
             */
             SDL_ShowCursor(!Get_Mouse_State());
-        } else if (!Get_Mouse_State() && hwcursor.Surface != nullptr) {
-            /*
-            ** Draw software emulated cursor.
-            */
-            int x, y;
-            SDL_Rect dst;
-
-            Get_Video_Mouse(x, y);
-
-            dst.x = x - hwcursor.HotX;
-            dst.y = y - hwcursor.HotY;
-            dst.w = hwcursor.Surface->w;
-            dst.h = hwcursor.Surface->h;
-
-            SDL_BlitSurface(hwcursor.Surface, nullptr, windowSurface, &dst);
         }
 
         SDL_UpdateTexture(texture, NULL, windowSurface->pixels, windowSurface->pitch);
         SDL_RenderClear(renderer);
-        if (!smooth_compositor.Render()) {
-            SDL_RenderCopy(renderer, texture, NULL, &render_dst);
-            RenderDetails();
-        }
+        if (!smooth_compositor.Render()) SDL_RenderCopy(renderer, texture, NULL, &render_dst);
+        RenderDetails();
+        RenderCursor();
         SDL_RenderPresent(renderer);
     }
 
@@ -996,6 +979,10 @@ private:
                              detail.width * sx, detail.height * sy};
             SDL_RenderCopyF(renderer, detailTexture, &src, &dst);
         }
+    }
+    void RenderCursor()
+    {
+        const float sx = float(render_dst.w) / surface->w, sy = float(render_dst.h) / surface->h;
         if (!Settings.Video.HardwareCursor && !Get_Mouse_State() && hwcursor.Surface) {
             SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
             if (cursor) {

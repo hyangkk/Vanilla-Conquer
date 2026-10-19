@@ -2213,15 +2213,15 @@ int SidebarClass::StripClass::SelectClass::Action(unsigned flags, KeyNumType& ke
         if (flags & LEFTUP) {
             switch (spc) {
             case SPC_ION_CANNON:
-                Map.Help_Text(TXT_ION_CANNON, X, Y, CC_GREEN, true);
+                Map.Help_Text(TXT_ION_CANNON, Map.SideX - 2, Y, CC_GREEN, true);
                 break;
 
             case SPC_NUCLEAR_BOMB:
-                Map.Help_Text(TXT_NUKE_STRIKE, X, Y, CC_GREEN, true);
+                Map.Help_Text(TXT_NUKE_STRIKE, Map.SideX - 2, Y, CC_GREEN, true);
                 break;
 
             case SPC_AIR_STRIKE:
-                Map.Help_Text(TXT_AIR_STRIKE, X, Y, CC_GREEN, true);
+                Map.Help_Text(TXT_AIR_STRIKE, Map.SideX - 2, Y, CC_GREEN, true);
                 break;
             }
             flags &= ~LEFTUP;
@@ -2280,7 +2280,8 @@ int SidebarClass::StripClass::SelectClass::Action(unsigned flags, KeyNumType& ke
             **	Display the help text if the mouse is over the button.
             */
             if (flags & LEFTUP) {
-                Map.Help_Text(choice->Full_Name(), X, Y, CC_GREEN, true, choice->Cost_Of() * PlayerPtr->CostBias);
+                // Keep help outside both cameo categories so it cannot disable native detail.
+                Map.Help_Text(choice->Full_Name(), Map.SideX - 2, Y, CC_GREEN, true, choice->Cost_Of() * PlayerPtr->CostBias);
                 flags &= ~LEFTUP;
             }
 

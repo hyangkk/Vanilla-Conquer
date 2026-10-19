@@ -11,3 +11,10 @@ The probe checks all 56 old starts, sixteen visible entries per category, all 32
 The compact layout preserves the original 160-pixel sidebar, uses 32×24 cameos in a 640×400 game frame, and shows two columns × eight rows per category. Cameos, clocks, and ready/hold overlays are composed together at native resolution before scaling.
 
 Native engine result on macOS arm64: zero failures, 22 buildings and 24 units in the production lists. Existing CTest suite: 15/15 passed. Visual QA uses a separate C&C Sidebar Preview app and private saves; it must not interrupt a user's running game.
+
+The expanded-view regression run uses `[Video] GameWidth=960` and `GameHeight=600`.
+It checks all 56 legacy starts, the right-anchored 160-pixel sidebar, 584-pixel
+viewport height, all 32 selection events, scrolling, and a save/reload round trip.
+The 2026-10-19 macOS arm64 dummy-driver run reported zero failures. Native Retina
+preview additionally verified a production tooltip to the left of the entire
+sidebar and crisp cameos under the software cursor in fullscreen.

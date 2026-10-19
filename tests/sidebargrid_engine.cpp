@@ -19,10 +19,11 @@ static BuildingClass* Place(StructType type){
 bool Generate_Mission_Starts(const char* directory){
  std::string dir(directory);
  GameToPlay=GAME_NORMAL; GameActive=true; PlayerWins=PlayerLoses=false;
+ Check("expanded logical canvas is active",SeenBuff.Get_Width()==960&&SeenBuff.Get_Height()==600);
  for(int slot=100;slot<=155;++slot){
   char name[64];std::snprintf(name,sizeof(name),"/starts/savegame.%03d",slot);
   if(!Load_Game((dir+name).c_str()))return false;
-  Check("old save loads with rebuilt sixteen-slot grid",Map.MaxVisible==16&&Map.SideBarWidth==160&&Map.SideX==480&&Map.RadWidth==160);
+  Check("old save loads with rebuilt sixteen-slot grid",Map.MaxVisible==16&&Map.SideBarWidth==160&&Map.SideX==SeenBuff.Get_Width()-160&&Map.RadWidth==160);
  }
  if(!Load_Game((dir+"/progress.sav").c_str()))return false;
  GameActive=true;PlayerWins=PlayerLoses=false;PlayerPtr->Credits=50000;
@@ -50,12 +51,13 @@ bool Generate_Mission_Starts(const char* directory){
   Check("legacy scroll state normalized on load",strip.TopIndex%2==0&&strip.TopIndex<=SidebarLayout::MaximumTop(strip.BuildableCount)&&!strip.IsScrolling&&strip.Slid==0);
   strip.TopIndex=0;
  }
- Check("tactical viewport excludes entire sidebar",Map.TacLeptonWidth/ICON_LEPTON_W<=(480/ICON_PIXEL_W));
+ Check("tactical viewport excludes entire sidebar",Map.TacLeptonWidth/ICON_LEPTON_W<=((SeenBuff.Get_Width()-160)/ICON_PIXEL_W));
+ Check("loaded save expands tactical height",Lepton_To_Pixel(Map.TacLeptonHeight)==600-Map.Get_Tab_Height());
  Check("clip window is exactly eight compact rows high",WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT]==8*24);
  std::string output=dir+"/savegame.090";
  Check("save grid preview",Save_Game(output.c_str(),"SIDEBAR GRID PREVIEW"));
  int buildings=Buildings.Count();
- Check("save reload preserves content and layout",Load_Game(output.c_str())&&Buildings.Count()==buildings&&Map.Column[0].BuildableCount>16&&Map.Column[1].BuildableCount>16&&Map.SideX==480);
+ Check("save reload preserves content and layout",Load_Game(output.c_str())&&Buildings.Count()==buildings&&Map.Column[0].BuildableCount>16&&Map.Column[1].BuildableCount>16&&Map.SideX==SeenBuff.Get_Width()-160);
  // Exercise the real selection action for every visible cell, not only its rectangle.
  for(int category=0;category<2;++category){
   auto& strip=Map.Column[category];strip.TopIndex=0;

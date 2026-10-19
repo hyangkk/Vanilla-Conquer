@@ -494,6 +494,21 @@ int Main_Menu(unsigned int timeout)
     int starty = 25 * scale_factor;
 #endif
 
+    const int menu_x = (SeenBuff.Get_Width() - 320 * scale_factor) / 2;
+    const int menu_y = (SeenBuff.Get_Height() - 200 * scale_factor) / 2;
+    D_DIALOG_X += menu_x; D_DIALOG_Y += menu_y;
+    D_START_X += menu_x; D_START_Y += menu_y;
+    D_LOAD_X += menu_x; D_LOAD_Y += menu_y;
+    D_MULTI_X += menu_x; D_MULTI_Y += menu_y;
+    D_INTRO_X += menu_x; D_INTRO_Y += menu_y;
+    D_EXIT_X += menu_x; D_EXIT_Y += menu_y;
+#ifdef NEWMENU
+    starty += menu_y;
+#endif
+#ifdef BONUS_MISSIONS
+    D_BONUS_X += menu_x;
+#endif
+
     // Make sure any changes to buttons here are also reflected in the enum and handling in Select_Game in init.cpp.
     enum
     {
