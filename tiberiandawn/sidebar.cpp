@@ -75,6 +75,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "common/renderlayers.h"
 #include "settings.h"
 
 /*
@@ -253,6 +254,7 @@ void SidebarClass::Configure_Layout(void)
  *=============================================================================================*/
 void SidebarClass::Init_Clear(void)
 {
+    RenderLayers::Clear_Details();
     PowerClass::Init_Clear();
 
     IsToRedraw = true;
@@ -280,6 +282,7 @@ void SidebarClass::Init_Clear(void)
  *=============================================================================================*/
 void SidebarClass::Init_IO(void)
 {
+    RenderLayers::Clear_Details();
     Configure_Layout(); // Recompute geometry after loading an old native save.
 
 #if (FRENCH)
@@ -1933,6 +1936,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
             for (int w = 0; w < 9; ++w) WindowList[WINDOW_SIDEBAR][w] = savedWindow[w];
             cameo.Scale(*destination, 0, 0, x + LeftEdgeOffset, y,
                         sourceWidth, sourceHeight, ObjectWidth, ObjectHeight);
+            RenderLayers::Add_Detail(cameo, sourceWidth, sourceHeight, *destination,
+                                     x + LeftEdgeOffset, y, ObjectWidth, ObjectHeight);
 
         }
     }

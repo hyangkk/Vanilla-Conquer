@@ -172,6 +172,36 @@ void Mark(const unsigned char* destination, int width, int height, int pitch,
         }
     }
 }
+void Clear_Details() { frame.details.clear(); ++frame.serial; }
+void Add_Detail(GraphicViewPortClass& source, int source_width, int source_height,
+                GraphicViewPortClass& destination, int x, int y, int width, int height)
+{
+    auto existing = std::find_if(frame.details.begin(), frame.details.end(),
+        [&](const Detail& detail) { return detail.x == x && detail.y == y; });
+    if ((existing == frame.details.end() && frame.details.size() >= 32) ||
+        x < 0 || y < 0 || width <= 0 || height <= 0 ||
+        x + width > destination.Get_Width() || y + height > destination.Get_Height() ||
+        source_width <= 0 || source_height <= 0 ||
+        source_width > source.Get_Width() || source_height > source.Get_Height()) return;
+    Detail detail{x, y, width, height, source_width, source_height, {}, {}};
+    if (!source.Lock()) return;
+    auto pixels = reinterpret_cast<const unsigned char*>(source.Get_Offset());
+    const int pitch = source.Get_Width() + source.Get_XAdd() + source.Get_Pitch();
+    detail.pixels.resize(source_width * source_height);
+    for (int row = 0; row < source_height; ++row)
+        std::memcpy(detail.pixels.data() + row * source_width, pixels + row * pitch, source_width);
+    source.Unlock();
+    if (!destination.Lock()) return;
+    const auto target = reinterpret_cast<const unsigned char*>(destination.Get_Offset());
+    const int target_pitch = destination.Get_Width() + destination.Get_XAdd() + destination.Get_Pitch();
+    detail.reference.resize(width * height);
+    for (int row = 0; row < height; ++row)
+        std::memcpy(detail.reference.data() + row * width, target + (y + row) * target_pitch + x, width);
+    destination.Unlock();
+    if (existing == frame.details.end()) frame.details.push_back(std::move(detail));
+    else *existing = std::move(detail);
+    ++frame.serial;
+}
 void Finish()
 {
     if (!frame.capturing || !foreground) return;
@@ -221,6 +251,28 @@ const std::vector<uint32_t>& Compose(int width, int height, const uint32_t* pale
         background.resize(width*height);
         for (int y=0;y<height;++y) for (int x=0;x<width;++x)
             background[y*width+x] = palette[frame.background[(y*frame.height/height)*frame.width+x*frame.width/width]];
+        for (const auto& detail : frame.details) {
+            if (detail.x + detail.width > frame.width || detail.y + detail.height > frame.height) continue;
+            // A menu, tooltip, or other UI may have covered the cameo since capture.
+            // Preserve that final UI rather than painting artwork over it.
+            bool visible = true;
+            for (int row = 0; row < detail.height && visible; ++row)
+                visible = std::memcmp(detail.reference.data() + row * detail.width,
+                    frame.background.data() + (detail.y + row) * frame.width + detail.x,
+                    detail.width) == 0;
+            if (!visible) continue;
+            const int left = (detail.x * width + frame.width - 1) / frame.width;
+            const int top = (detail.y * height + frame.height - 1) / frame.height;
+            const int right = ((detail.x + detail.width) * width + frame.width - 1) / frame.width;
+            const int bottom = ((detail.y + detail.height) * height + frame.height - 1) / frame.height;
+            for (int y = top; y < bottom; ++y) for (int x = left; x < right; ++x) {
+                int u = std::min(detail.source_width - 1,
+                    (x * frame.width - detail.x * width) * detail.source_width / (detail.width * width));
+                int v = std::min(detail.source_height - 1,
+                    (y * frame.height - detail.y * height) * detail.source_height / (detail.height * height));
+                background[y * width + x] = palette[detail.pixels[v * detail.source_width + u]];
+            }
+        }
         last_serial = frame.serial; last_width = width; last_height = height;
     }
     output = background;

@@ -120,6 +120,30 @@ int main() {
     tracked.anchor_x=30; RenderLayers::Offset(tracked,0,ox,oy);
     Check(std::abs(tracked.anchor_x+ox-position)<1e-6,
           "Replacing the scene raster must not jump the displayed world position");
+    GraphicBufferClass detail(4,2);
+    for(int y=0;y<2;++y) for(int x=0;x<4;++x) detail.Put_Pixel(x,y,40+y*4+x);
+    gb.Fill_Rect(0,0,15,15,7);
+    RenderLayers::Clear_Details();
+    // Sidebar redraws can happen before the first interpolated world frame.
+    RenderLayers::Add_Detail(detail,4,2,gb,8,2,2,1);
+    RenderLayers::Begin(gb,0,0,8,16); RenderLayers::Begin_Foreground();
+    RenderLayers::Finish();
+    const auto crisp=RenderLayers::Compose(32,32,palette,1);
+    for(int y=0;y<2;++y) for(int x=0;x<4;++x)
+        Check(crisp[(4+y)*32+16+x]==palette[40+y*4+x],
+              "Compact UI must retain native artwork strokes lost by logical downsampling");
+    RenderLayers::Begin(gb,0,0,8,16); RenderLayers::Begin_Foreground();
+    RenderLayers::Add_Detail(detail,4,2,gb,8,2,2,1);
+    gb.Put_Pixel(8,2,99); // A tooltip covers part of this cameo after its capture.
+    RenderLayers::Finish();
+    const auto covered=RenderLayers::Compose(32,32,palette,1);
+    Check(covered[4*32+16]==palette[99] && covered[4*32+18]==palette[7],
+          "Native UI artwork must not cover later tooltips or modal text");
+    RenderLayers::Begin(gb,0,0,8,16);
+    Check(RenderLayers::frame.details.size()==1, "Unchanged sidebar artwork must survive a new world frame");
+    RenderLayers::Clear_Details();
+    Check(RenderLayers::frame.details.empty(), "A mission load must discard old sidebar artwork");
+    RenderLayers::Begin_Foreground(); RenderLayers::Finish();
     gb.Unlock();
     std::puts("raster layer reconstruction and coverage: all checks passed");
 }

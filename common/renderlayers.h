@@ -29,6 +29,11 @@ struct Layer {
     std::vector<unsigned char> pixels, mask;
     std::vector<unsigned short> effects;
 };
+// Native UI artwork retained separately from its smaller logical hit rectangle.
+struct Detail {
+    int x, y, width, height, source_width, source_height;
+    std::vector<unsigned char> pixels, reference;
+};
 struct Frame {
     int width = 0, height = 0, clip_x = 0, clip_y = 0, clip_w = 0, clip_h = 0;
     bool ready = false, publishing = false, capturing = false, supported = true;
@@ -38,6 +43,7 @@ struct Frame {
     bool simulation_pending = false;
     std::vector<unsigned char> background;
     std::vector<Layer> layers;
+    std::vector<Detail> details;
     std::vector<std::array<unsigned char, 256>> effects;
 };
 extern Frame frame;
@@ -48,6 +54,9 @@ void Begin_Object(double sx, double sy, double ex, double ey, unsigned int objec
 void End_Object();
 void Begin_Foreground();
 void Finish();
+void Clear_Details();
+void Add_Detail(GraphicViewPortClass& source, int source_width, int source_height,
+                GraphicViewPortClass& destination, int x, int y, int width, int height);
 void Invalidate();
 // Called by the existing rasterizers, recording coverage even when foreground and background colours match.
 void Mark(const unsigned char* destination, int width, int height, int pitch,
