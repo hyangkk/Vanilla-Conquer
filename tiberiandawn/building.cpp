@@ -2862,7 +2862,7 @@ COORDINATE BuildingClass::Fire_Coord(int) const
 TARGET BuildingClass::Greatest_Threat(ThreatType threat) const
 {
     Validate();
-    if (*this != STRUCT_SAM) {
+    if (*this != STRUCT_SAM || Campaign_SAM_Ground(this)) {
         threat = threat | (THREAT_INFANTRY | THREAT_BOATS | THREAT_VEHICLES | THREAT_RANGE);
 
         if (!House->IsHuman || Campaign_Defense_Targets_Buildings(this)) {
@@ -3157,7 +3157,7 @@ ActionType BuildingClass::What_Action(ObjectClass* object) const
     **	Don't allow targeting of SAM sites, even if the CTRL key
     **	is held down.
     */
-    if (action == ACTION_ATTACK && *this == STRUCT_SAM) {
+    if (action == ACTION_ATTACK && *this == STRUCT_SAM && !Campaign_SAM_Ground(this)) {
         action = ACTION_NONE;
     }
 
@@ -3197,7 +3197,7 @@ ActionType BuildingClass::What_Action(CELL cell) const
     **	Don't allow targeting of SAM sites, even if the CTRL key
     **	is held down.
     */
-    if (action == ACTION_ATTACK && *this == STRUCT_SAM) {
+    if (action == ACTION_ATTACK && *this == STRUCT_SAM && !Campaign_SAM_Ground(this)) {
         action = ACTION_NONE;
     }
 
@@ -4328,7 +4328,7 @@ int BuildingClass::Mission_Attack(void)
         **	to face the current TarCom of the launcher.
         */
         case SAM_READY:
-            if (!Target_Legal(TarCom) || !Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->Altitude == 0) {
+            if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
                 return (TICKS_PER_SECOND);
@@ -4348,7 +4348,7 @@ int BuildingClass::Mission_Attack(void)
         **	The launcher is in the process of firing.
         */
         case SAM_FIRING:
-            if (!Target_Legal(TarCom) || !Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->Altitude == 0) {
+            if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
             } else {
@@ -4371,7 +4371,7 @@ int BuildingClass::Mission_Attack(void)
             return (1);
 
         case SAM_READY2:
-            if (!Target_Legal(TarCom) || !Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->Altitude == 0) {
+            if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
                 return (TICKS_PER_SECOND);
@@ -4388,7 +4388,7 @@ int BuildingClass::Mission_Attack(void)
             return (1);
 
         case SAM_FIRING2:
-            if (!Target_Legal(TarCom) || !Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->Altitude == 0) {
+            if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
             } else {

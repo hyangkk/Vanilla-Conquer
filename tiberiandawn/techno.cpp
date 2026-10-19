@@ -1390,7 +1390,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method, int mask, int range, Techno
     **	Special case so that SAM site doesn't fire on aircraft that are landed.
     */
     if (otype == RTTI_AIRCRAFT && What_Am_I() == RTTI_BUILDING && *((BuildingClass*)this) == STRUCT_SAM) {
-        if (((AircraftClass*)object)->Altitude == 0)
+        if (((AircraftClass*)object)->Altitude == 0 && !Campaign_SAM_Ground(this))
             return (false);
     }
 
@@ -2899,6 +2899,9 @@ int TechnoClass::Weapon_Range(int which) const
         if (weapon == WEAPON_TOW_TWO && What_Am_I() == RTTI_BUILDING
             && static_cast<BuildingClass const*>(this)->Class->Type == STRUCT_ATOWER
             && GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
+            return (Weapons[weapon].Range * 3);
+        }
+        if (weapon == WEAPON_NIKE && Campaign_SAM_Ground(this)) {
             return (Weapons[weapon].Range * 3);
         }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
