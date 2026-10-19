@@ -7,6 +7,7 @@
 #include <vector>
 #include <set>
 #include <cctype>
+#include <cstdlib>
 
 bool Generate_Mission_Starts(const char* directory)
 {
@@ -24,9 +25,27 @@ bool Generate_Mission_Starts(const char* directory)
         roots.push_back(root);
     }
     if (roots.empty() || roots.size()>800) return false;
+    int first_slot = 100;
+    if (const char* value = std::getenv("VANILLA_MISSION_START_SLOT")) {
+        std::string slot(value);
+        if (slot.empty() || slot.find_first_not_of("0123456789") != std::string::npos || slot.size() > 3) return false;
+        first_slot = std::atoi(value);
+    }
+    if (first_slot < 100 || first_slot + roots.size() > 1000) return false;
+    std::vector<std::string> descriptions;
+    std::ifstream labels(dir+"/descriptions.txt");
+    if (labels.is_open()) {
+        std::string label;
+        while (std::getline(labels, label)) {
+            if (!label.empty() && label.back() == '\r') label.pop_back();
+            if (label.empty() || label.size() > 40 || label.find_first_of("\t\r") != std::string::npos) return false;
+            descriptions.push_back(label);
+        }
+        if (descriptions.size() != roots.size()) return false;
+    }
     // Preflight every output before any write. Existing files are never replaced.
     for (size_t i=0;i<roots.size();++i) {
-        char filename[32]; std::snprintf(filename,sizeof(filename),"/savegame.%03d",100+int(i));
+        char filename[32]; std::snprintf(filename,sizeof(filename),"/savegame.%03d",first_slot+int(i));
         if (RawFileClass((dir+filename).c_str()).Is_Available()) return false;
     }
     if (RawFileClass((dir+"/verified.tsv").c_str()).Is_Available()) return false;
@@ -54,9 +73,10 @@ bool Generate_Mission_Starts(const char* directory)
         const int credits=PlayerPtr->Credits, units=Units.Count(), infantry=Infantry.Count();
         const int buildings=Buildings.Count(), aircraft=Aircraft.Count();
         char filename[32],description[DESCRIP_MAX];
-        std::snprintf(filename,sizeof(filename),"savegame.%03d",100+int(i));
+        std::snprintf(filename,sizeof(filename),"savegame.%03d",first_slot+int(i));
         std::snprintf(description,sizeof(description),"START %s %02d %c%c",root[2]=='G'?"GDI":root[2]=='B'?"NOD":"BONUS",
                       Scen.Scenario,root[5],root[6]);
+        if (!descriptions.empty()) std::snprintf(description, sizeof(description), "%s", descriptions[i].c_str());
         const std::string path=dir+"/"+filename;
         if (!Save_Game(path.c_str(),description)) return false;
         // Validate a cold load, not a load that inherits this scenario's mode flags.
