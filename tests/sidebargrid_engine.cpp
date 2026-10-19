@@ -24,6 +24,7 @@ bool Generate_Mission_Starts(const char* directory){
   char name[64];std::snprintf(name,sizeof(name),"/starts/savegame.%03d",slot);
   if(!Load_Game((dir+name).c_str()))return false;
   Check("old save loads with rebuilt sixteen-slot grid",Map.MaxVisible==16&&Map.SideBarWidth==160&&Map.SideX==SeenBuff.Get_Width()-160&&Map.RadWidth==160);
+  Check("legacy save expands viewport with sidebar shown or hidden",Lepton_To_Pixel(Map.TacLeptonWidth)==SeenBuff.Get_Width()-(Map.IsSidebarActive?160:0)&&Lepton_To_Pixel(Map.TacLeptonHeight)==SeenBuff.Get_Height()-Map.Get_Tab_Height());
  }
  if(!Load_Game((dir+"/progress.sav").c_str()))return false;
  GameActive=true;PlayerWins=PlayerLoses=false;PlayerPtr->Credits=50000;

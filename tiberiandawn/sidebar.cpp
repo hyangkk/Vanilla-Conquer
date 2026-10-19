@@ -433,6 +433,8 @@ void SidebarClass::Init_IO(void)
             Activate(1);
             //			Background.Zap();
             //			Add_A_Button(Background);
+        } else {
+            Set_View_Dimensions(0, Map.Get_Tab_Height());
         }
     }
 }
