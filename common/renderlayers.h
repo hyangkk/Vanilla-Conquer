@@ -55,6 +55,7 @@ void End_Object();
 void Begin_Foreground();
 void Finish();
 void Clear_Details();
+bool Detail_Visible(const Detail& detail, const unsigned char* pixels, int width, int height, int pitch);
 void Add_Detail(GraphicViewPortClass& source, int source_width, int source_height,
                 GraphicViewPortClass& destination, int x, int y, int width, int height);
 void Invalidate();

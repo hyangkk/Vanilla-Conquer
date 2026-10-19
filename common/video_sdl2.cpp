@@ -840,6 +840,7 @@ public:
 
     virtual ~VideoSurfaceSDL2()
     {
+        if (detailTexture) SDL_DestroyTexture(detailTexture);
         if (frontSurface == this) {
             frontSurface = nullptr;
         }
@@ -946,11 +947,70 @@ public:
 
         SDL_UpdateTexture(texture, NULL, windowSurface->pixels, windowSurface->pitch);
         SDL_RenderClear(renderer);
-        if (!smooth_compositor.Render()) SDL_RenderCopy(renderer, texture, NULL, &render_dst);
+        if (!smooth_compositor.Render()) {
+            SDL_RenderCopy(renderer, texture, NULL, &render_dst);
+            RenderDetails();
+        }
         SDL_RenderPresent(renderer);
     }
 
 private:
+    // Native sidebar art must also work at unlimited simulation speed and with
+    // motion interpolation disabled. Validate against the live final raster so
+    // menus, tooltips and mission transitions still take precedence.
+    void RenderDetails()
+    {
+        const auto& details = RenderLayers::frame.details;
+        if (details.empty()) return;
+        int cellWidth = 0, cellHeight = 0;
+        for (const auto& detail : details) {
+            cellWidth = std::max(cellWidth, detail.source_width);
+            cellHeight = std::max(cellHeight, detail.source_height);
+        }
+        const int atlasHeight = cellHeight * int(details.size());
+        if (!detailTexture || detailWidth != cellWidth || detailHeight != atlasHeight) {
+            if (detailTexture) SDL_DestroyTexture(detailTexture);
+            detailWidth = cellWidth; detailHeight = atlasHeight;
+            detailTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
+                                              SDL_TEXTUREACCESS_STREAMING, cellWidth, atlasHeight);
+            if (!detailTexture) return;
+            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeNearest);
+        }
+        detailPixels.resize(cellWidth * atlasHeight);
+        for (size_t i = 0; i < details.size(); ++i) {
+            const auto& detail = details[i];
+            for (int y = 0; y < detail.source_height; ++y) for (int x = 0; x < detail.source_width; ++x) {
+                const auto color = palette->colors[detail.pixels[y * detail.source_width + x]];
+                unsigned char rgba[4] = {color.r, color.g, color.b, 255};
+                std::memcpy(&detailPixels[(i * cellHeight + y) * cellWidth + x], rgba, 4);
+            }
+        }
+        if (SDL_UpdateTexture(detailTexture, nullptr, detailPixels.data(), cellWidth * 4) != 0) return;
+        const float sx = float(render_dst.w) / surface->w, sy = float(render_dst.h) / surface->h;
+        for (size_t i = 0; i < details.size(); ++i) {
+            const auto& detail = details[i];
+            if (!RenderLayers::Detail_Visible(detail, static_cast<unsigned char*>(surface->pixels),
+                                               surface->w, surface->h, surface->pitch)) continue;
+            SDL_Rect src = {0, int(i) * cellHeight, detail.source_width, detail.source_height};
+            SDL_FRect dst = {render_dst.x + detail.x * sx, render_dst.y + detail.y * sy,
+                             detail.width * sx, detail.height * sy};
+            SDL_RenderCopyF(renderer, detailTexture, &src, &dst);
+        }
+        if (!Settings.Video.HardwareCursor && !Get_Mouse_State() && hwcursor.Surface) {
+            SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
+            if (cursor) {
+                int x, y; Get_Video_Mouse(x, y);
+                SDL_FRect dst = {render_dst.x + (x - hwcursor.HotX) * sx,
+                                 render_dst.y + (y - hwcursor.HotY) * sy,
+                                 hwcursor.Surface->w * sx, hwcursor.Surface->h * sy};
+                SDL_RenderCopyF(renderer, cursor, nullptr, &dst);
+                SDL_DestroyTexture(cursor);
+            }
+        }
+    }
+    SDL_Texture* detailTexture = nullptr;
+    int detailWidth = 0, detailHeight = 0;
+    std::vector<uint32_t> detailPixels;
     SDL_Surface* surface;
     SDL_Surface* windowSurface;
     SDL_Texture* texture;

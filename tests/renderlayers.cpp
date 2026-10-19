@@ -126,6 +126,15 @@ int main() {
     RenderLayers::Clear_Details();
     // Sidebar redraws can happen before the first interpolated world frame.
     RenderLayers::Add_Detail(detail,4,2,gb,8,2,2,1);
+    RenderLayers::Invalidate(); // Fastest speed has no interpolated world frame.
+    const auto* ui = reinterpret_cast<const unsigned char*>(gb.Get_Offset());
+    const int uiPitch = gb.Get_Width()+gb.Get_XAdd()+gb.Get_Pitch();
+    Check(RenderLayers::Detail_Visible(RenderLayers::frame.details.front(),ui,16,16,uiPitch),
+          "Native UI must remain available without a ready motion frame");
+    gb.Put_Pixel(8,2,99);
+    Check(!RenderLayers::Detail_Visible(RenderLayers::frame.details.front(),ui,16,16,uiPitch),
+          "Fallback UI must respect a menu covering the live front surface");
+    gb.Put_Pixel(8,2,7);
     RenderLayers::Begin(gb,0,0,8,16); RenderLayers::Begin_Foreground();
     RenderLayers::Finish();
     const auto crisp=RenderLayers::Compose(32,32,palette,1);

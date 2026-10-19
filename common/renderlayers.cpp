@@ -173,6 +173,16 @@ void Mark(const unsigned char* destination, int width, int height, int pitch,
     }
 }
 void Clear_Details() { frame.details.clear(); ++frame.serial; }
+bool Detail_Visible(const Detail& detail, const unsigned char* pixels, int width, int height, int pitch)
+{
+    if (!pixels || detail.x < 0 || detail.y < 0 || detail.width <= 0 || detail.height <= 0 ||
+        detail.x + detail.width > width || detail.y + detail.height > height ||
+        detail.reference.size() != size_t(detail.width * detail.height)) return false;
+    for (int row = 0; row < detail.height; ++row)
+        if (std::memcmp(detail.reference.data() + row * detail.width,
+                        pixels + (detail.y + row) * pitch + detail.x, detail.width) != 0) return false;
+    return true;
+}
 void Add_Detail(GraphicViewPortClass& source, int source_width, int source_height,
                 GraphicViewPortClass& destination, int x, int y, int width, int height)
 {
@@ -255,12 +265,7 @@ const std::vector<uint32_t>& Compose(int width, int height, const uint32_t* pale
             if (detail.x + detail.width > frame.width || detail.y + detail.height > frame.height) continue;
             // A menu, tooltip, or other UI may have covered the cameo since capture.
             // Preserve that final UI rather than painting artwork over it.
-            bool visible = true;
-            for (int row = 0; row < detail.height && visible; ++row)
-                visible = std::memcmp(detail.reference.data() + row * detail.width,
-                    frame.background.data() + (detail.y + row) * frame.width + detail.x,
-                    detail.width) == 0;
-            if (!visible) continue;
+            if (!Detail_Visible(detail, frame.background.data(), frame.width, frame.height, frame.width)) continue;
             const int left = (detail.x * width + frame.width - 1) / frame.width;
             const int top = (detail.y * height + frame.height - 1) / frame.height;
             const int right = ((detail.x + detail.width) * width + frame.width - 1) / frame.width;
