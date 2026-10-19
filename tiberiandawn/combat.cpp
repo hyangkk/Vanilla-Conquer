@@ -35,6 +35,8 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
+#include <vector>
 
 int Modify_Damage(int damage, WarheadType warhead, ArmorType armor);
 void Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, WarheadType warhead);
@@ -231,6 +233,66 @@ void Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, 
         if (optr->IsWall) {
             if (whead->IsWallDestroyer || (whead->IsWoodDestroyer && optr->IsWooden)) {
                 Map[cell].Reduce_Wall(strength);
+            }
+        }
+    }
+}
+
+// The SAM perk is selected by the actual missile impact, never by shared warhead
+// data. Ground bursts remain ground-only; airborne bursts affect flying aircraft.
+void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source,
+                                   WarheadType warhead, bool airborne)
+{
+    if (!strength || Special.IsInert || warhead == WARHEAD_NONE || !Campaign_SAM_Ground(source)) return;
+    const int radius = 5 * (ICON_LEPTON_W + (ICON_LEPTON_W >> 1));
+    CELL center = Coord_Cell(coord);
+    if ((unsigned)center >= MAP_CELL_TOTAL) return;
+    ObjectClass* impact = Map[center].Cell_Occupier();
+    std::vector<TARGET> targets;
+    auto collect = [&](ObjectClass* object) {
+        if (object && object != source && !object->IsInLimbo && object->IsDown && !object->IsToDamage) {
+            object->IsToDamage = true;
+            targets.push_back(object->As_Target());
+        }
+    };
+    if (airborne) {
+        for (int i=0;i<Aircraft.Count();++i) {
+            auto air=Aircraft.Ptr(i);
+            if (air->Altitude>0) collect(air);
+        }
+    } else {
+        const int cells=(radius+ICON_LEPTON_W-1)/ICON_LEPTON_W;
+        for (int dy=-cells;dy<=cells;++dy) for (int dx=-cells;dx<=cells;++dx) {
+            int x=Cell_X(center)+dx,y=Cell_Y(center)+dy;
+            if (x<0||x>=MAP_CELL_W||y<0||y>=MAP_CELL_H) continue;
+            for (auto object=Map[XY_Cell(x,y)].Cell_Occupier();object;object=object->Next) collect(object);
+        }
+    }
+    for (auto target:targets) {
+        auto object=As_Object(target);
+        // A chain explosion may already have removed a collected target. New
+        // objects reusing its heap slot do not carry the pending-damage marker.
+        if (!object || !object->IsToDamage) continue;
+        object->IsToDamage=false;
+        int distance=object==impact && object->What_Am_I()==RTTI_BUILDING ? 0 : Distance(coord,object->Center_Coord());
+        if (!object->IsInLimbo && object->IsDown && distance<radius) {
+            int damage=strength;
+            object->Take_Damage(damage,distance/5,warhead,source);
+        }
+    }
+    if (!airborne) {
+        const int cells=(radius+ICON_LEPTON_W-1)/ICON_LEPTON_W;
+        auto whead=&Warheads[warhead];
+        for (int dy=-cells;dy<=cells;++dy) for (int dx=-cells;dx<=cells;++dx) {
+            int x=Cell_X(center)+dx,y=Cell_Y(center)+dy;
+            if (x<0||x>=MAP_CELL_W||y<0||y>=MAP_CELL_H) continue;
+            CELL cell=XY_Cell(x,y);int distance=Distance(coord,Cell_Coord(cell));
+            if (distance>=radius) continue;
+            unsigned damage=strength>>Bound((distance/5)>>whead->SpreadFactor,0,16);
+            Map[cell].Reduce_Tiberium(damage/10);
+            if (Map[cell].Overlay!=OVERLAY_NONE) {
+                auto overlay=&OverlayTypeClass::As_Reference(Map[cell].Overlay);
+                if (overlay->IsWall && (whead->IsWallDestroyer || (whead->IsWoodDestroyer&&overlay->IsWooden))) Map[cell].Reduce_Wall(damage);
             }
         }
     }

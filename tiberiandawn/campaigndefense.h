@@ -29,4 +29,5 @@ inline int Campaign_Defense_Rearm_Delay(TechnoClass const* object,int ticks,bool
     if (Campaign_SAM_Ground(object)) return Campaign_SAM_Attack_Delay(object,ticks);
     return Campaign_Defense_Targets_Buildings(object) ? MAX(1,(ticks+(roundUp?1:0))/2) : ticks;
 }
+void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, WarheadType warhead, bool airborne);
 #endif

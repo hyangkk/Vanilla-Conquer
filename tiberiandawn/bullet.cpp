@@ -46,6 +46,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 
 #define GRAVITY 3
 
@@ -425,7 +426,10 @@ void BulletClass::AI(void)
             /*
             **	Non-aircraft targets apply damage to the ground.
             */
-            if (!Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->In_Which_Layer() == LAYER_GROUND) {
+            if (*this == BULLET_SAM && Campaign_SAM_Ground(Payback)) {
+                bool airborne = Is_Target_Aircraft(TarCom) && As_Aircraft(TarCom)->In_Which_Layer() != LAYER_GROUND;
+                Campaign_SAM_Explosion_Damage(Coord, Strength, Payback, Class->Warhead, airborne);
+            } else if (!Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->In_Which_Layer() == LAYER_GROUND) {
                 Explosion_Damage(Coord, Strength, Payback, Class->Warhead);
             } else {
 
