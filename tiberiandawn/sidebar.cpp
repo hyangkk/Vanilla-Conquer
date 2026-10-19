@@ -215,7 +215,7 @@ void SidebarClass::Configure_Layout(void)
     WindowList[WINDOW_SIDEBAR][WINDOWX] = SideX + PowWidth;
     WindowList[WINDOW_SIDEBAR][WINDOWY] = SideY + TopHeight;
     WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = SideWidth - PowWidth;
-    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (SidebarLayout::Rows * (StripClass::OBJECT_HEIGHT * factor));
+    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (SidebarLayout::Rows * (StripClass::OBJECT_HEIGHT * factor) / 2);
 
     if (factor == 1) {
         WindowList[WINDOW_SIDEBAR][WINDOWY] += 1;
@@ -1160,10 +1160,10 @@ void SidebarClass::StripClass::One_Time(int)
 void SidebarClass::StripClass::Configure_Layout(void)
 {
     int factor = Get_Resolution_Factor();
-    ObjectWidth = OBJECT_WIDTH << factor;
-    ObjectHeight = OBJECT_HEIGHT << factor;
+    ObjectWidth = (OBJECT_WIDTH << factor) / 2;
+    ObjectHeight = (OBJECT_HEIGHT << factor) / 2;
     StripWidth = STRIP_WIDTH << factor;
-    LeftEdgeOffset = (3 << factor);
+    LeftEdgeOffset = (1 << factor);
     ButtonSpacingOffset = (StripWidth - ((BUTTON_WIDTH << factor) << 1)) / 3;
 
 }
@@ -1834,6 +1834,19 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                 production = false;
             }
 
+            // Compose cameo and production overlays at their native resolution,
+            // then reduce them together so clocks and ready/hold labels stay aligned.
+            const int sourceWidth = OBJECT_WIDTH << factor;
+            const int sourceHeight = OBJECT_HEIGHT << factor;
+            static GraphicBufferClass cameo(OBJECT_WIDTH * 2, OBJECT_HEIGHT * 2);
+            GraphicViewPortClass* destination = Set_Logic_Page(cameo);
+            int savedWindow[9];
+            for (int w = 0; w < 9; ++w) savedWindow[w] = WindowList[WINDOW_SIDEBAR][w];
+            WindowList[WINDOW_SIDEBAR][WINDOWX] = 0;
+            WindowList[WINDOW_SIDEBAR][WINDOWY] = 0;
+            WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = sourceWidth;
+            WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = sourceHeight;
+            cameo.Fill_Rect(0, 0, sourceWidth - 1, sourceHeight - 1, DKGREY);
             if (Get_Resolution_Factor()) {
                 remapper = 0;
             }
@@ -1847,8 +1860,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                 IsTheaterShape = (bool)factor; // This shape is theater specific
                 CC_Draw_Shape(shapefile,
                               shapenum,
-                              x - WindowList[WINDOW_SIDEBAR][WINDOWX] + LeftEdgeOffset,
-                              y - WindowList[WINDOW_SIDEBAR][WINDOWY],
+                              0,
+                              0,
                               WINDOW_SIDEBAR,
                               SHAPE_NORMAL | SHAPE_WIN_REL | (remapper ? SHAPE_FADING : SHAPE_NORMAL),
                               remapper);
@@ -1861,8 +1874,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                 if (darken) {
                     CC_Draw_Shape(ClockShapes,
                                   0,
-                                  x - WindowList[WINDOW_SIDEBAR][WINDOWX] + LeftEdgeOffset,
-                                  y - WindowList[WINDOW_SIDEBAR][WINDOWY],
+                                  0,
+                                  0,
                                   WINDOW_SIDEBAR,
                                   SHAPE_NORMAL | SHAPE_WIN_REL | SHAPE_GHOST,
                                   NULL,
@@ -1882,8 +1895,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                     */
                     CC_Draw_Shape(ObjectTypeClass::PipShapes,
                                   PIP_READY,
-                                  (x - WindowList[WINDOW_SIDEBAR][WINDOWX]) + LeftEdgeOffset + (ObjectWidth >> 1),
-                                  (y - WindowList[WINDOW_SIDEBAR][WINDOWY]) + ObjectHeight
+                                  sourceWidth / 2,
+                                  sourceHeight
                                       - Get_Build_Frame_Height(ObjectTypeClass::PipShapes) - 8,
                                   WINDOW_SIDEBAR,
                                   SHAPE_CENTER);
@@ -1892,8 +1905,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                 } else {
                     CC_Draw_Shape(ClockShapes,
                                   stage + 1,
-                                  x - WindowList[WINDOW_SIDEBAR][WINDOWX] + LeftEdgeOffset,
-                                  y - WindowList[WINDOW_SIDEBAR][WINDOWY],
+                                  0,
+                                  0,
                                   WINDOW_SIDEBAR,
                                   SHAPE_NORMAL | SHAPE_WIN_REL | SHAPE_GHOST,
                                   NULL,
@@ -1905,8 +1918,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                     if (factory && !factory->Is_Building()) {
                         CC_Draw_Shape(ObjectTypeClass::PipShapes,
                                       PIP_HOLDING,
-                                      (x - WindowList[WINDOW_SIDEBAR][WINDOWX]) + LeftEdgeOffset + (ObjectWidth >> 1),
-                                      (y - WindowList[WINDOW_SIDEBAR][WINDOWY]) + ObjectHeight
+                                      sourceWidth / 2,
+                                      sourceHeight
                                           - Get_Build_Frame_Height(ObjectTypeClass::PipShapes)
                                           - 8, // Moved up now that icons have names on them
                                       WINDOW_SIDEBAR,
@@ -1916,6 +1929,11 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                     }
                 }
             }
+            Set_Logic_Page(destination);
+            for (int w = 0; w < 9; ++w) WindowList[WINDOW_SIDEBAR][w] = savedWindow[w];
+            cameo.Scale(*destination, 0, 0, x + LeftEdgeOffset, y,
+                        sourceWidth, sourceHeight, ObjectWidth, ObjectHeight);
+
         }
     }
 }

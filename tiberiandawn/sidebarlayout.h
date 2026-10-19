@@ -3,9 +3,9 @@
 #define SIDEBARLAYOUT_H
 namespace SidebarLayout {
 constexpr int Columns = 2;
-constexpr int Rows = 4;
+constexpr int Rows = 8;
 constexpr int Visible = Columns * Rows;
-constexpr int Width = 148;
+constexpr int Width = 80;
 inline int Column(int slot) { return slot % Columns; }
 inline int Row(int slot) { return slot / Columns; }
 inline int MaximumTop(int count) {
