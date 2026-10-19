@@ -77,6 +77,7 @@
  *   DisplayClass::Prev_Object -- Searches for the previous object on the map.                 *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 #include "function.h"
+#include "campaignperks.h"
 #include "smoothmotion.h"
 #include "common/fading.h"
 #include "ccini.h"
@@ -887,6 +888,10 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
     **	cells to these are of friendly persuasion, then consider the proximity check to
     **	have been a success.
     */
+    if (PlayerPtr && house == PlayerPtr->Class->House && Campaign_Local_Player(PlayerPtr)) {
+        return static_cast<BuildingTypeClass const*>(object)->Legal_Placement(trycell);
+    }
+
     ptr = list;
     while (*ptr != REFRESH_EOL) {
         CELL cell = trycell + *ptr++;

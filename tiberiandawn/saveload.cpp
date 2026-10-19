@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignperks.h"
 #include "campaigncredits.h"
 #include "campaigntech.h"
 
@@ -495,6 +496,7 @@ bool Load_Game(const char* file_name)
     Map.Flag_To_Redraw(true);
 
     Fixup_Scenario();
+    Apply_Campaign_Unlimited_Power(PlayerPtr);
     // Existing frame-zero mission starts inherit the current opening balance.
     if (Frame == 0) Apply_Campaign_Starting_Credits();
 

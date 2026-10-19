@@ -98,6 +98,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignperks.h"
 
 /*
 ** New sidebar for GlyphX multiplayer. ST - 3/26/2019 12:24PM
@@ -998,6 +999,7 @@ void HouseClass::AI(void)
     if (GameToPlay == GAME_NORMAL) {
         Power = MAX(Power, 0);
         Drain = MAX(Drain, 0);
+        Apply_Campaign_Unlimited_Power(this);
     }
 
     /*

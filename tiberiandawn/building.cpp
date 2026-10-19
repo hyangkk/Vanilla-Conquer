@@ -95,6 +95,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignperks.h"
 #include "campaigndefense.h"
 #include "ccini.h"
 
@@ -5493,6 +5494,8 @@ bool BuildingClass::Can_Player_Move(void) const
  *=============================================================================================*/
 bool BuildingClass::Passes_Proximity_Check(CELL homecell)
 {
+    if (Campaign_Local_Player(House)) return Class->Legal_Placement(homecell);
+
     /*
     ** In editor mode, the proximity check always passes.
     */

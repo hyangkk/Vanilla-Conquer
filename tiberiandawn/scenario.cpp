@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignperks.h"
 #include "campaigncredits.h"
 #include "smoothmotion.h"
 #include "common/framelimit.h"
@@ -285,6 +286,7 @@ bool Read_Scenario(char* root)
     }
     ScenarioInit--;
     Apply_Campaign_Starting_Credits();
+    Apply_Campaign_Unlimited_Power(PlayerPtr);
     CCDebugString("C&C95 - Leaving Read_Scenario.\n");
     return (true);
 }
