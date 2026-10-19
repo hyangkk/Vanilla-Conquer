@@ -65,6 +65,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "sidebarlayout.h"
 #include <stdlib.h>
 
 // void const * RadarClass::CoverShape;
@@ -124,8 +125,14 @@ RadarClass::RadarClass(void)
  *=============================================================================================*/
 void RadarClass::One_Time(void)
 {
+    Configure_Radar_Layout();
+    DisplayClass::One_Time();
+}
+
+void RadarClass::Configure_Radar_Layout(void)
+{
     int factor = Get_Resolution_Factor();
-    RadWidth = 80 << factor;
+    RadWidth = SidebarLayout::Width << factor;
     RadHeight = 70 << factor;
     RadX = SeenBuff.Get_Width() - RadWidth;
     RadY = Map.Get_Tab_Height() - (1 << factor);
@@ -133,18 +140,17 @@ void RadarClass::One_Time(void)
     RadPHeight = MAP_CELL_H << factor;
 
     if (factor) {
-        RadOffX = 16;
+        RadOffX = 16 + SidebarLayout::RadarInset(factor);
         RadOffY = 7;
         RadIWidth = 128;
         RadIHeight = 128;
     } else {
-        RadOffX = 4 << factor;
+        RadOffX = (4 << factor) + SidebarLayout::RadarInset(factor);
         RadOffY = 1 << factor;
         RadIWidth = 72 << factor;
         RadIHeight = 69 << factor;
     }
 
-    DisplayClass::One_Time();
     RadarButton.X = RadX + RadOffX;
     RadarButton.Y = RadY + RadOffY;
     RadarButton.Width = RadIWidth;
@@ -367,6 +373,9 @@ void RadarClass::Draw_It(bool forced)
     }
 
     if (Map.IsSidebarActive) {
+        int inset = SidebarLayout::RadarInset(Get_Resolution_Factor());
+        LogicPage->Fill_Rect(RadX, RadY, RadX + inset - 1, RadY + RadHeight - 1, DKGREY);
+        LogicPage->Fill_Rect(RadX + RadWidth - inset, RadY, RadX + RadWidth - 1, RadY + RadHeight - 1, DKGREY);
         if (IsRadarActive) {
 
             // HidPage.Lock();
@@ -427,7 +436,7 @@ void RadarClass::Draw_It(bool forced)
             } else {
                 GraphicViewPortClass* oldpage = Set_Logic_Page(HidPage);
                 //				if (LogicPage->Lock()) {
-                CC_Draw_Shape(RadarAnim, RADAR_ACTIVATED_FRAME, RadX, RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
+                CC_Draw_Shape(RadarAnim, RADAR_ACTIVATED_FRAME, RadX + SidebarLayout::RadarInset(Get_Resolution_Factor()), RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
                 if (BaseX || BaseY) {
                     LogicPage->Fill_Rect(RadX + RadOffX,
                                          RadY + RadOffY,
@@ -470,7 +479,7 @@ void RadarClass::Draw_It(bool forced)
             */
             //			if (forced) {
             int val = (DoesRadarExist) ? MAX_RADAR_FRAMES : 0;
-            CC_Draw_Shape(RadarAnim, val, RadX, RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
+            CC_Draw_Shape(RadarAnim, val, RadX + SidebarLayout::RadarInset(Get_Resolution_Factor()), RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
             FullRedraw = false;
             IsToRedraw = false;
             //			}
@@ -1268,7 +1277,7 @@ void RadarClass::Radar_Anim(void)
 
     Draw_Box(RadX + RadOffX - 1, RadY + RadOffY - 1, RadIWidth + 2, RadIHeight + 2, BOXSTYLE_RAISED, true);
     draw_window.Clear();
-    CC_Draw_Shape(RadarAnim, RadarAnimFrame, RadX, RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
+    CC_Draw_Shape(RadarAnim, RadarAnimFrame, RadX + SidebarLayout::RadarInset(Get_Resolution_Factor()), RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
 
     Flag_To_Redraw(false);
     Set_Logic_Page(oldpage);
@@ -1868,7 +1877,7 @@ void RadarClass::Draw_Names(void)
         return;
     }
 
-    CC_Draw_Shape(RadarAnim, RADAR_ACTIVATED_FRAME, RadX, RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
+    CC_Draw_Shape(RadarAnim, RADAR_ACTIVATED_FRAME, RadX + SidebarLayout::RadarInset(Get_Resolution_Factor()), RadY + 1, WINDOW_MAIN, SHAPE_NORMAL);
     LogicPage->Fill_Rect(
         RadX + RadOffX, RadY + RadOffY, RadX + RadOffX + RadIWidth - 1, RadY + RadOffY + RadIHeight - 1, BLACK);
 

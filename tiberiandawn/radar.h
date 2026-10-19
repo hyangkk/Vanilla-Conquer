@@ -64,6 +64,7 @@ public:
     ** Initialization
     */
     virtual void One_Time(void);   // One-time inits
+    void Configure_Radar_Layout(void);
     virtual void Init_Clear(void); // Clears all to known state
 
     virtual bool Map_Cell(CELL cell, HouseClass* house, bool and_for_allies);

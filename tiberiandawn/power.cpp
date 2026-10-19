@@ -127,7 +127,15 @@ void PowerClass::Init_Clear(void)
 void PowerClass::One_Time(void)
 {
     RadarClass::One_Time();
+    Configure_Power_Layout();
+    int factor = Get_Resolution_Factor();
+    PowerShape = MFCD::Retrieve((factor) ? "HPOWER.SHP" : "POWER.SHP");
+    PowerBarShape = Hires_Retrieve("PWRBAR.SHP");
+}
 
+void PowerClass::Configure_Power_Layout(void)
+{
+    Configure_Radar_Layout();
     int factor = Get_Resolution_Factor();
     PowX = SeenBuff.Get_Width() - Map.RadWidth;
     if (factor) {
@@ -145,8 +153,6 @@ void PowerClass::One_Time(void)
     PowerButton.Width = PowWidth - 1;
     PowerButton.Height = PowHeight;
 
-    PowerShape = MFCD::Retrieve((factor) ? "HPOWER.SHP" : "POWER.SHP");
-    PowerBarShape = Hires_Retrieve("PWRBAR.SHP");
 }
 
 /***********************************************************************************************

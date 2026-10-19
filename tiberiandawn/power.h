@@ -60,6 +60,7 @@ public:
     ** Initialization
     */
     virtual void One_Time(void); // One-time inits
+    void Configure_Power_Layout(void);
 
     virtual void Init_Clear(void); // Clears all to known state
     virtual void Draw_It(bool complete = false);

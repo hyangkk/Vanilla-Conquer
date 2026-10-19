@@ -38,6 +38,7 @@
 #include "function.h"
 #include "power.h"
 #include "factory.h"
+#include "sidebarlayout.h"
 
 class InitClass
 {
@@ -65,7 +66,7 @@ public:
     enum SideBarClassEnums
     {
         BUTTON_ACTIVATOR = 100, // Button ID for the activator.
-        SIDEBARWIDTH = 80,
+        SIDEBARWIDTH = SidebarLayout::Width,
 #if 0
 		SIDE_X=RADAR_X,					// The X position of sidebar upper left corner.
 		SIDE_Y=RADAR_Y+RADAR_HEIGHT,	// The Y position of sidebar upper left corner.
@@ -121,6 +122,7 @@ public:
     ** Initialization
     */
     virtual void One_Time(void);                    // One-time inits
+    void Configure_Layout(void);
     virtual void Init_Clear(void);                  // Clears all to known state
     virtual void Init_IO(void);                     // Inits button list
     virtual void Init_Theater(TheaterType theater); // Theater-specific inits
@@ -186,6 +188,7 @@ public:
         bool AI(KeyNumType& input, int x, int y);
         void Draw_It(bool complete);
         void One_Time(int id);
+        void Configure_Layout(void);
         void Init_Clear(void);
         void Init_IO(int id);
         void Init_Theater(TheaterType theater);
@@ -215,14 +218,14 @@ public:
             MAX_BUILDABLES = 30,       // Maximum number of object types in sidebar.
             OBJECT_HEIGHT = 24,        // Pixel height of each buildable object.
             OBJECT_WIDTH = 32,         // Pixel width of each buildable object.
-            STRIP_WIDTH = 35,          // Width of strip (not counting border lines).
-            MAX_VISIBLE = 4,           // Number of object slots visible at any one time.
+            STRIP_WIDTH = 70,          // Width of strip (not counting border lines).
+            MAX_VISIBLE = SidebarLayout::Visible,           // Number of object slots visible at any one time.
             SCROLL_RATE = 8,           // The pixel jump while scrolling (larger is faster).
             BUTTON_SPACING_OFFSET = 4, // spacing info for buttons
             UP_X_OFFSET = 2,           // Scroll up arrow coordinates.
-            UP_Y_OFFSET = MAX_VISIBLE * OBJECT_HEIGHT + 1,
+            UP_Y_OFFSET = SidebarLayout::Rows * OBJECT_HEIGHT + 1,
             DOWN_X_OFFSET = 18, // Scroll down arrow coordinates.
-            DOWN_Y_OFFSET = MAX_VISIBLE * OBJECT_HEIGHT + 1,
+            DOWN_Y_OFFSET = SidebarLayout::Rows * OBJECT_HEIGHT + 1,
             BUTTON_WIDTH = 16,  // Width of the mini-scroll button.
             BUTTON_HEIGHT = 12, // Height of the mini-scroll button.
             // LEFT_EDGE_OFFSET=2,		// Offset from left edge for building shapes.
