@@ -2894,6 +2894,11 @@ int TechnoClass::Weapon_Range(int which) const
             && GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
             return (Weapons[weapon].Range * 2);
         }
+        if (weapon == WEAPON_TOW_TWO && What_Am_I() == RTTI_BUILDING
+            && static_cast<BuildingClass const*>(this)->Class->Type == STRUCT_ATOWER
+            && GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
+            return (Weapons[weapon].Range * 3);
+        }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
             return (Weapons[weapon].Range * 2);
         }
