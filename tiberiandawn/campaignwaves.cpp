@@ -46,7 +46,7 @@ void PressAttack(FootClass* object,TechnoClass* base,int quarters)
 {
     if (!object || !object->IsActive || object->IsInLimbo || object->Strength<=0
         || !Hostile(object->House) || object->Team || object->Trigger || object->IsALoaner || object->In_Radio_Contact()
-        || !Map.In_Radar(Coord_Cell(object->Coord)) || Target_Value(object->As_Target())%4>=quarters) return;
+        || !Map.In_Radar(Coord_Cell(object->Coord)) || Target_Value(object->As_Target())%8>=quarters) return;
     auto type=object->Techno_Type_Class();
     if (type->Primary==WEAPON_NONE || type->IsTransporter) return;
     if (object->What_Am_I()==RTTI_UNIT) {
@@ -216,11 +216,11 @@ void Campaign_Waves_AI()
     if (!Hostile(house) || !Present(house)) {remaining=0;nextFrame=Frame+Interval(wave);return;}
     if (!remaining) {
         entry=candidate;faction=house->Class->House;dinosaur=DinosaurType(house);
-        ++wave;remaining=std::min(std::uint64_t(UNIT_MAX+INFANTRY_MAX),6+6*std::uint64_t(wave));delivered=0;
+        ++wave;remaining=std::min(std::uint64_t((UNIT_MAX+INFANTRY_MAX)/2),3+3*std::uint64_t(wave));delivered=0;
         nextFrame=Frame+Interval(wave);
     } else if (!entry || !arrivalLand[entry]) entry=candidate;
     bool any=false;
-    for (int budget=0;budget<24 && remaining;++budget) {
+    for (int budget=0;budget<12 && remaining;++budget) {
         if (!Spawn(house,target)) break;
         any=true;
     }

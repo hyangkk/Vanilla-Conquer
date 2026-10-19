@@ -253,6 +253,16 @@ void FactoryClass::AI(void)
             stages = MAX(stages, 1);
         }
 
+        // Advance the existing production clock four times faster without changing
+        // costs, stage precision or the saved FactoryClass layout.
+        if (GameToPlay == GAME_NORMAL && Object && House == PlayerPtr && House->IsHuman
+            && Object->What_Am_I() == RTTI_BUILDING) {
+            auto type = static_cast<BuildingClass*>(Object)->Class->Type;
+            if (type == STRUCT_OBELISK || type == STRUCT_ATOWER || type == STRUCT_SAM) {
+                stages *= 4;
+            }
+        }
+
         for (int index = 0; index < stages; index++) {
             if (!Has_Completed() && Graphic_Logic()) {
                 IsDifferent = true;
