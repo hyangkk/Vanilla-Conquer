@@ -36,7 +36,7 @@ bool Generate_Mission_Starts(const char* directory){
   target->IsDiscoveredByPlayer=true;
   if(kind==3)static_cast<AircraftClass*>(target)->Altitude=AircraftClass::FLIGHT_LEVEL;
   int base=Weapons[WEAPON_NIKE].Range;
-  Check("player SAM range equals three times original",sam->Weapon_Range(0)==base*3);
+  Check("player SAM range equals six times original",sam->Weapon_Range(0)==base*6);
   Check("enemy SAM retains previous range",enemy->Weapon_Range(0)==base*2);
   Check("SAM damage and reload remain unchanged",Weapons[WEAPON_NIKE].Attack==50&&Weapons[WEAPON_NIKE].ROF==50);
   Check("automatic scan acquires far target",sam->Greatest_Threat(THREAT_NORMAL)==target->As_Target());
@@ -58,11 +58,11 @@ bool Generate_Mission_Starts(const char* directory){
   if(kind!=3)Check("enemy SAM auto scan ignores ground target",sam->Greatest_Threat(THREAT_NORMAL)==TARGET_NONE);
   if(kind!=3)Check("enemy SAM rejects ground target state",!Campaign_SAM_Target_Allowed(sam,target->As_Target()));
   sam->House=good;target->House=bad;
-  COORDINATE old=target->Coord;target->Coord=Coord_Move(sam->Fire_Coord(0),DIR_E,base*3+4*256);
-  Check("beyond tripled range is excluded",!sam->In_Range(target->As_Target(),0));target->Coord=old;
+  COORDINATE old=target->Coord;target->Coord=Coord_Move(sam->Fire_Coord(0),DIR_E,base*6+4*256);
+  Check("beyond sixfold range is excluded",!sam->In_Range(target->As_Target(),0));target->Coord=old;
   GameToPlay=GAME_SKIRMISH;Check("skirmish has no new perk",!Campaign_SAM_Ground(sam)&&sam->Weapon_Range(0)==base);GameToPlay=GAME_NORMAL;
   good->IsHuman=false;Check("AI player slot gets no ground perk",!Campaign_SAM_Ground(sam));good->IsHuman=true;
-  PlayerPtr=bad;bad->IsHuman=true;Check("Nod owned SAM gets same perk",Campaign_SAM_Ground(enemy)&&enemy->Weapon_Range(0)==base*3);bad->IsHuman=false;PlayerPtr=good;
+  PlayerPtr=bad;bad->IsHuman=true;Check("Nod owned SAM gets same perk",Campaign_SAM_Ground(enemy)&&enemy->Weapon_Range(0)==base*6);bad->IsHuman=false;PlayerPtr=good;
   if(kind==0){
    sam->Assign_Target(TARGET_NONE);sam->Arm=0;sam->Assign_Mission(MISSION_GUARD);sam->Commence();
    target->Strength=target->Class_Of().MaxStrength;
@@ -72,7 +72,7 @@ bool Generate_Mission_Starts(const char* directory){
    good->Credits=50000;good->IsToWin=good->IsToLose=good->IsToDie=false;
    Check("save isolated ground-attack preview",Save_Game((dir+"/savegame.095").c_str(),"SAM GROUND ATTACK PREVIEW"));
    Check("save reload keeps current-owned SAM perk",Load_Game((dir+"/savegame.095").c_str()));
-   bool found=false;for(int i=0;i<Buildings.Count();++i){auto b=Buildings.Ptr(i);if(!b->IsInLimbo&&b->House==PlayerPtr&&b->Class->Type==STRUCT_SAM){found=true;Check("loaded SAM still acquires ground target",b->Weapon_Range(0)==base*3&&Target_Legal(b->Greatest_Threat(THREAT_NORMAL)));}}
+   bool found=false;for(int i=0;i<Buildings.Count();++i){auto b=Buildings.Ptr(i);if(!b->IsInLimbo&&b->House==PlayerPtr&&b->Class->Type==STRUCT_SAM){found=true;Check("loaded SAM still acquires ground target",b->Weapon_Range(0)==base*6&&Target_Legal(b->Greatest_Threat(THREAT_NORMAL)));}}
    Check("loaded SAM found",found);
   }
  }

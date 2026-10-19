@@ -1,0 +1,9 @@
+# Native player SAM upgrade probe
+
+Use the same private offline build workflow as samground_engine.md: temporarily substitute samupgrade_engine.cpp for missionstarts.cpp, build/copy the probe, restore the original source immediately, and rebuild the normal release before installation. Use COV Blackout as fixture.sav with installed DataPath and a private UserPath. Never modify live user saves.
+
+The real engine must acquire and damage vehicle/building/air targets at forty cells, acquire and fire on infantry, keep original warhead damage/scatter, reject beyond the new sixfold base range (45 cells), preserve enemy range/ground restrictions, and exclude AI/skirmish. Both player factions and current-save ownership are covered. A complete mapped-cell mask must match an independently enumerated thirty-cell disk, with inside/outside samples and save/load fixup. Run samsight_engine.cpp for additional corner and incremental coverage.
+
+The cadence test compares local-human and enemy SAMs with identical ROF bias against stationary airborne targets ten cells north. It drives the actual rise/rotate/two-shot/reload state machine for 34 shots, deleting each missile after recording launch so the target survives. It checks both rearm delays and sustained intervals after warm-up. On native macOS arm64: enemy 30 intervals = 1995 ticks, player = 1005 ticks, 1.985075x firing speed. Delays halve with integer tick rounding; animations and turret rotation accelerate too, since changing weapon ROF alone leaves the fixed reload cycle dominant. Enemy behavior remains the reference cadence. The previous implementation must fail range/sight/cadence checks.
+
+savegame.098 is an isolated visual fixture: target at 27–30 cells (past the previous 22.5-cell range, within this camera), thirty-cell shroud reveal, and high diagnostic target HP. These fixture edits do not ship or change player data. 40-cell damage checks use ordinary target HP.

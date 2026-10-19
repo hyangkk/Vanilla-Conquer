@@ -1281,7 +1281,7 @@ void BuildingClass::AI(void)
         */
         if (PrimaryFacing.Is_Rotating()) {
             if (*this == STRUCT_SAM) {
-                if (PrimaryFacing.Rotation_Adjust(15)) {
+                if (PrimaryFacing.Rotation_Adjust(Campaign_SAM_Ground(this) ? 30 : 15)) {
                     Mark(MARK_CHANGE);
                 }
             } else {
@@ -1736,7 +1736,7 @@ void BuildingClass::Look(bool)
     int sight = Class->SightRange;
     if (GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
         if (Class->Type == STRUCT_SAM) {
-            sight *= 5;
+            sight *= 10;
         } else if (Class->Type == STRUCT_OBELISK || Class->Type == STRUCT_ATOWER) {
             sight *= 2;
         }
@@ -4301,7 +4301,7 @@ int BuildingClass::Mission_Attack(void)
         case SAM_UNDERGROUND:
             IsReadyToCommence = true;
             if (Target_Legal(TarCom)) {
-                Set_Rate(2);
+                Set_Rate(Campaign_SAM_Attack_Delay(this, 2));
                 Set_Stage(0);
                 Status = SAM_RISING;
                 return (1);
@@ -4334,7 +4334,7 @@ int BuildingClass::Mission_Attack(void)
             if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
-                return (TICKS_PER_SECOND);
+                return Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND);
             } else {
                 if (!PrimaryFacing.Is_Rotating()) {
                     DirType facing = Direction(TarCom);
@@ -4377,7 +4377,7 @@ int BuildingClass::Mission_Attack(void)
             if (!Campaign_SAM_Target_Allowed(this, TarCom)) {
                 Assign_Target(TARGET_NONE);
                 Status = SAM_LOCKING;
-                return (TICKS_PER_SECOND);
+                return Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND);
             } else {
                 if (!PrimaryFacing.Is_Rotating()) {
                     DirType facing = Direction(TarCom);
@@ -4406,7 +4406,7 @@ int BuildingClass::Mission_Attack(void)
                         if (error == FIRE_OK) {
                             Fire_At(TarCom, 0);
                             Status = SAM_LOCKING;
-                            return (TICKS_PER_SECOND * 3);
+                            return Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3);
                         }
                     }
                 }
@@ -4419,7 +4419,7 @@ int BuildingClass::Mission_Attack(void)
         case SAM_LOCKING:
             if (!PrimaryFacing.Is_Rotating()) {
                 if (PrimaryFacing == DIR_N) {
-                    Set_Rate(2);
+                    Set_Rate(Campaign_SAM_Attack_Delay(this, 2));
                     Set_Stage(48);
                     Status = SAM_LOWERING;
                 } else {
@@ -4436,10 +4436,10 @@ int BuildingClass::Mission_Attack(void)
                 Set_Rate(0);
                 Set_Stage(0);
                 Status = SAM_UNDERGROUND;
-                return (TICKS_PER_SECOND);
+                return Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND);
             } else {
                 if (Fetch_Rate() == 0) {
-                    Set_Rate(2);
+                    Set_Rate(Campaign_SAM_Attack_Delay(this, 2));
                 }
             }
             return (1);

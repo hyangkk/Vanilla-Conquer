@@ -2279,9 +2279,9 @@ void TechnoClass::Assign_Target(TARGET target)
 int TechnoClass::Rearm_Delay(bool second) const
 {
     if (second) {
-        return (((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
+        return Campaign_SAM_Attack_Delay(this, ((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
     }
-    return (9);
+    return Campaign_SAM_Attack_Delay(this, 9);
 }
 
 /***********************************************************************************************
@@ -2902,7 +2902,7 @@ int TechnoClass::Weapon_Range(int which) const
             return (Weapons[weapon].Range * 3);
         }
         if (weapon == WEAPON_NIKE && Campaign_SAM_Ground(this)) {
-            return (Weapons[weapon].Range * 3);
+            return (Weapons[weapon].Range * 6);
         }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
             return (Weapons[weapon].Range * 2);
