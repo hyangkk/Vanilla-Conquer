@@ -944,6 +944,12 @@ void Decode_All_Pointers(void)
     case HOUSE_JP:
         ScenPlayer = SCEN_PLAYER_JP;
         break;
+
+    case HOUSE_MULTI4:
+        // Jurassic campaign humans (and its dinosaur finale) use Multi4.
+        // Resolve this from the saved owner, never from the previous game.
+        if (GameToPlay == GAME_NORMAL) ScenPlayer = SCEN_PLAYER_JP;
+        break;
     }
     Check_Ptr(PlayerPtr, __FILE__, __LINE__);
 

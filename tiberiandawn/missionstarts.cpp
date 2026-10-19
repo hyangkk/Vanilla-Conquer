@@ -61,6 +61,7 @@ bool Generate_Mission_Starts(const char* directory)
         if (!Save_Game(path.c_str(),description)) return false;
         // Validate a cold load, not a load that inherits this scenario's mode flags.
         Special.Init(); AreThingiesEnabled=false;
+        ScenPlayer=SCEN_PLAYER_GDI; // Do not inherit Jurassic identity from the exported mission.
         if (!Load_Game(path.c_str()) || !PlayerPtr || Frame!=0) return false;
         if (bool(Special.IsJurassic)!=(root[2]=='J') || (root[2]=='J' && !AreThingiesEnabled)) {
             std::fprintf(stderr,"Cold-load mode mismatch: %s Jurassic=%d assets=%d\n",root.c_str(),

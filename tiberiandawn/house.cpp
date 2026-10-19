@@ -554,7 +554,8 @@ bool Campaign_All_Tech(const HouseClass* house)
 {
     return house && CampaignTech::Enabled(Settings.Options.CampaignAllTech, GameToPlay == GAME_NORMAL,
         house == PlayerPtr, house->IsHuman,
-        house->Class->House == HOUSE_GOOD || house->Class->House == HOUSE_BAD);
+        house->Class->House == HOUSE_GOOD || house->Class->House == HOUSE_BAD
+            || (Special.IsJurassic && ScenPlayer == SCEN_PLAYER_JP));
 }
 
 bool Campaign_All_Tech_Type(const TechnoTypeClass* type, const HouseClass* house)
