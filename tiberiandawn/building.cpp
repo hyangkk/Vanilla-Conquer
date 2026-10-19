@@ -1734,9 +1734,12 @@ void BuildingClass::Look(bool)
     Validate();
 
     int sight = Class->SightRange;
-    if (GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman
-        && (Class->Type == STRUCT_OBELISK || Class->Type == STRUCT_ATOWER)) {
-        sight *= 2;
+    if (GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman) {
+        if (Class->Type == STRUCT_SAM) {
+            sight *= 5;
+        } else if (Class->Type == STRUCT_OBELISK || Class->Type == STRUCT_ATOWER) {
+            sight *= 2;
+        }
     }
     if (sight) {
         Map.Sight_From(House, Coord_Cell(Center_Coord()), sight, false);

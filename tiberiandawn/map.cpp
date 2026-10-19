@@ -604,8 +604,26 @@ void MapClass::Sight_From(HouseClass* house, CELL cell, int sightrange, bool inc
     */
     if (!In_Radar(cell))
         return;
-    if (!sightrange || sightrange > 10)
+    if (sightrange <= 0)
         return;
+
+    // The original offset table only covers radii through ten. Larger sight
+    // must enumerate bounded coordinates rather than index beyond that table.
+    if (sightrange > 10) {
+        int cx = Cell_X(cell);
+        int cy = Cell_Y(cell);
+        int radius = MIN(sightrange, MAX(MAP_CELL_W, MAP_CELL_H));
+        for (int y = MAX(0, cy - radius); y <= MIN(MAP_CELL_H - 1, cy + radius); ++y) {
+            for (int x = MAX(0, cx - radius); x <= MIN(MAP_CELL_W - 1, cx + radius); ++x) {
+                CELL candidate = XY_Cell(x, y);
+                int distance = Distance(candidate, cell);
+                if (distance <= sightrange && (!incremental || distance > sightrange - 2)) {
+                    Map.Map_Cell(candidate, house, true);
+                }
+            }
+        }
+        return;
+    }
 
     /*
     **	Determine logical cell coordinate for center scan point.
