@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigncredits.h"
 #include "smoothmotion.h"
 #include "common/framelimit.h"
 
@@ -283,6 +284,7 @@ bool Read_Scenario(char* root)
         return (false);
     }
     ScenarioInit--;
+    Apply_Campaign_Starting_Credits();
     CCDebugString("C&C95 - Leaving Read_Scenario.\n");
     return (true);
 }

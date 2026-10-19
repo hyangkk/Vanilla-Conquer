@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigncredits.h"
 #include "campaigntech.h"
 
 extern bool DLLSave(FileClass& file);
@@ -494,6 +495,8 @@ bool Load_Game(const char* file_name)
     Map.Flag_To_Redraw(true);
 
     Fixup_Scenario();
+    // Existing frame-zero mission starts inherit the current opening balance.
+    if (Frame == 0) Apply_Campaign_Starting_Credits();
 
     ScenarioInit = 0;
     // Old saves may contain a sidebar calculated before campaign unlock was enabled.
