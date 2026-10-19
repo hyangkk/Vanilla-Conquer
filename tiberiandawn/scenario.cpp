@@ -819,6 +819,16 @@ bool Restate_Mission(char const* name, int button1, int button2)
 
 void Fixup_Scenario(void)
 {
+    // Reapply local tower sight to existing buildings, including native old saves.
+    if (GameToPlay == GAME_NORMAL && PlayerPtr) {
+        for (int i = 0; i < Buildings.Count(); ++i) {
+            BuildingClass* building = Buildings.Ptr(i);
+            if (building && !building->IsInLimbo && building->House == PlayerPtr
+                && (building->Class->Type == STRUCT_OBELISK || building->Class->Type == STRUCT_ATOWER)) {
+                building->Look();
+            }
+        }
+    }
     /*
     ** "Fraidycat" civilians avoid wandering into Tiberium for SCG08EB, since they're mission-critical.
     */

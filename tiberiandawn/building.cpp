@@ -1733,8 +1733,13 @@ void BuildingClass::Look(bool)
     */
     Validate();
 
-    if (Class->SightRange) {
-        Map.Sight_From(House, Coord_Cell(Center_Coord()), Class->SightRange, false);
+    int sight = Class->SightRange;
+    if (GameToPlay == GAME_NORMAL && House && House == PlayerPtr && House->IsHuman
+        && (Class->Type == STRUCT_OBELISK || Class->Type == STRUCT_ATOWER)) {
+        sight *= 2;
+    }
+    if (sight) {
+        Map.Sight_From(House, Coord_Cell(Center_Coord()), sight, false);
     }
 
 #if (0)

@@ -188,7 +188,7 @@ void Add_Detail(GraphicViewPortClass& source, int source_width, int source_heigh
 {
     auto existing = std::find_if(frame.details.begin(), frame.details.end(),
         [&](const Detail& detail) { return detail.x == x && detail.y == y; });
-    if ((existing == frame.details.end() && frame.details.size() >= 32) ||
+    if ((existing == frame.details.end() && frame.details.size() >= 60) ||
         x < 0 || y < 0 || width <= 0 || height <= 0 ||
         x + width > destination.Get_Width() || y + height > destination.Get_Height() ||
         source_width <= 0 || source_height <= 0 ||

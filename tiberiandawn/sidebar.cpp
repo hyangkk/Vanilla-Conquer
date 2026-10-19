@@ -201,7 +201,10 @@ void SidebarClass::Configure_Layout(void)
     SideY = Map.RadY + Map.RadHeight + 1;
     SideWidth = SeenBuff.Get_Width() - SideX;
     SideHeight = SeenBuff.Get_Height() - SideY;
-    MaxVisible = SidebarLayout::Visible;
+    SidebarLayout::ConfigureRows(SeenBuff.Get_Height(), SideY + 13 * factor + 1,
+                                 SidebarLayout::IconHeight * factor,
+                                 Get_Build_Frame_Height(Hires_Retrieve("STRIPUP.SHP")));
+    MaxVisible = SidebarLayout::VisibleCount();
     ButtonHeight = 9 * factor;
     TopHeight = ButtonHeight + (4 * factor);
 
@@ -216,7 +219,7 @@ void SidebarClass::Configure_Layout(void)
     WindowList[WINDOW_SIDEBAR][WINDOWX] = SideX + PowWidth;
     WindowList[WINDOW_SIDEBAR][WINDOWY] = SideY + TopHeight;
     WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = SideWidth - PowWidth;
-    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (SidebarLayout::Rows * (StripClass::OBJECT_HEIGHT * factor) / 2);
+    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (SidebarLayout::ActiveRows() * SidebarLayout::IconHeight * factor);
 
     if (factor == 1) {
         WindowList[WINDOW_SIDEBAR][WINDOWY] += 1;
@@ -227,7 +230,7 @@ void SidebarClass::Configure_Layout(void)
     **	Set up the coordinates for the sidebar strips. These coordinates are for
     **	the upper left corner.
     */
-    int width = (SideWidth - PowWidth) - (((StripClass::STRIP_WIDTH)*factor) << 1);
+    int width = (SideWidth - PowWidth) - ((StripClass::STRIP_WIDTH * factor) << 1);
     int spacing = width / 3;
 
     Column[0].X = SideX + PowWidth + spacing;
@@ -1165,8 +1168,8 @@ void SidebarClass::StripClass::One_Time(int)
 void SidebarClass::StripClass::Configure_Layout(void)
 {
     int factor = Get_Resolution_Factor();
-    ObjectWidth = (OBJECT_WIDTH << factor) / 2;
-    ObjectHeight = (OBJECT_HEIGHT << factor) / 2;
+    ObjectWidth = (OBJECT_WIDTH << factor) * 3 / 4;
+    ObjectHeight = (OBJECT_HEIGHT << factor) * 3 / 4;
     StripWidth = STRIP_WIDTH << factor;
     LeftEdgeOffset = (1 << factor);
     ButtonSpacingOffset = (StripWidth - ((BUTTON_WIDTH << factor) << 1)) / 3;
@@ -1250,18 +1253,20 @@ void SidebarClass::StripClass::Init_IO(int id)
     UpButton[ID].IsSticky = true;
     UpButton[ID].ID = BUTTON_UP + id;
     UpButton[ID].X = X + ButtonSpacingOffset + 1;
-    UpButton[ID].Y = Y + SidebarLayout::Rows * ObjectHeight - 1;
+    UpButton[ID].Y = Y + SidebarLayout::ActiveRows() * ObjectHeight - 1;
 
     UpButton[ID].Set_Shape(Hires_Retrieve("STRIPUP.SHP"));
+    UpButton[ID].Y = SeenBuff.Get_Height() - UpButton[ID].Height;
 
     DownButton[ID].IsSticky = true;
     DownButton[ID].ID = BUTTON_DOWN + id;
     DownButton[ID].X = UpButton[ID].X + UpButton[ID].Width + ButtonSpacingOffset - 2;
-    DownButton[ID].Y = Y + SidebarLayout::Rows * ObjectHeight - 1;
+    DownButton[ID].Y = Y + SidebarLayout::ActiveRows() * ObjectHeight - 1;
 
     DownButton[ID].Set_Shape(Hires_Retrieve("STRIPDN.SHP"));
+    DownButton[ID].Y = SeenBuff.Get_Height() - DownButton[ID].Height;
 
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Map.MaxVisible; index++) {
         SelectClass& g = SelectButton[ID][index];
         g.ID = BUTTON_SELECT;
         g.X = X + LeftEdgeOffset + SidebarLayout::Column(index) * (ObjectWidth + (1 << Get_Resolution_Factor()));
@@ -1353,7 +1358,7 @@ void SidebarClass::StripClass::Activate(void)
     DownButton[ID].Zap();
     Map.Add_A_Button(DownButton[ID]);
 
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Map.MaxVisible; index++) {
         SelectButton[ID][index].Zap();
         Map.Add_A_Button(SelectButton[ID][index]);
     }
@@ -1378,7 +1383,7 @@ void SidebarClass::StripClass::Deactivate(void)
 {
     Map.Remove_A_Button(UpButton[ID]);
     Map.Remove_A_Button(DownButton[ID]);
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Map.MaxVisible; index++) {
         Map.Remove_A_Button(SelectButton[ID][index]);
     }
 }
@@ -1693,7 +1698,7 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         ** New sidebar needs to be drawn not filled
         */
         LogicPage->Fill_Rect(X, Y - 1, X + StripWidth - 1,
-                             Y + SidebarLayout::Rows * ObjectHeight - 2, DKGREY);
+                             Y + SidebarLayout::ActiveRows() * ObjectHeight - 2, DKGREY);
 
         /*
         **	Redraw the scroll buttons.
@@ -1705,7 +1710,7 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         **	Loop through all the buildable objects that are visible in the strip and render
         **	them. Their Y offset may be adjusted if the strip is in the process of scrolling.
         */
-        for (int i = 0; i < MAX_VISIBLE; i++) {
+        for (int i = 0; i < Map.MaxVisible; i++) {
             bool production;
             bool completed;
             int stage;

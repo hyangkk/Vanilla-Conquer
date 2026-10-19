@@ -144,7 +144,7 @@ void PowerClass::Configure_Power_Layout(void)
         PowY = Map.RadY + Map.RadHeight + (13 << factor);
     }
     PowWidth = 8 << factor;
-    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY;
+    PowHeight = SeenBuff.Get_Height() - PowY;
     PowLineSpace = 5 << factor;
     PowLineWidth = PowWidth - 4;
 
@@ -212,7 +212,9 @@ void PowerClass::Draw_It(bool complete)
                 if (factor) {
 
                     CC_Draw_Shape(PowerBarShape, 0, PowX, PowY, WINDOW_CUSTOM, SHAPE_WIN_REL);
-                    CC_Draw_Shape(PowerBarShape, 1, PowX, PowY + 100, WINDOW_CUSTOM, SHAPE_WIN_REL);
+                    for (int offset = 100; offset < PowHeight; offset += 100) {
+                        CC_Draw_Shape(PowerBarShape, 1, PowX, PowY + offset, WINDOW_CUSTOM, SHAPE_WIN_REL);
+                    }
                 } else {
                     /* Draw MS-DOS power gauge. */
                     int top_y = PowY + 1;
@@ -265,12 +267,11 @@ void PowerClass::Draw_It(bool complete)
                                       WINDOW_CUSTOM,
                                       SHAPE_WIN_REL);
 
-                        CC_Draw_Shape(PowerBarShape,
-                                      3 + power_color,
-                                      PowX,
-                                      PowY - WindowList[WINDOW_CUSTOM][WINDOWY] + 100,
-                                      WINDOW_CUSTOM,
-                                      SHAPE_WIN_REL);
+                        for (int offset = 100; offset < PowHeight; offset += 100) {
+                            CC_Draw_Shape(PowerBarShape, 3 + power_color, PowX,
+                                          PowY - WindowList[WINDOW_CUSTOM][WINDOWY] + offset,
+                                          WINDOW_CUSTOM, SHAPE_WIN_REL);
+                        }
                     } else {
                         LogicPage->Fill_Rect(PowX + 2, bottom - power_height + 1, PowX + 5, bottom - 1, power_color);
                     }
