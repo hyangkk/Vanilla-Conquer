@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "campaignperks.h"
 #include "campaigncredits.h"
 #include "smoothmotion.h"
@@ -285,6 +286,7 @@ bool Read_Scenario(char* root)
         return (false);
     }
     ScenarioInit--;
+    Campaign_Enemies_Apply();
     Apply_Campaign_Starting_Credits();
     Apply_Campaign_Unlimited_Power(PlayerPtr);
     CCDebugString("C&C95 - Leaving Read_Scenario.\n");
@@ -352,6 +354,7 @@ void Fill_In_Data(void)
 void Clear_Scenario(void)
 {
     Smooth_Motion_Reset();
+    Campaign_Enemies_Reset();
     EndCountDown = TICKS_PER_SECOND * 30;
     CrateCount = 0;
     CrateTimer = 0;

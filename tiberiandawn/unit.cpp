@@ -94,6 +94,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "ccini.h"
 
 /***********************************************************************************************
@@ -1158,6 +1159,7 @@ UnitClass::~UnitClass(void)
 UnitClass::UnitClass(UnitType classid, HousesType house)
     : TarComClass(classid, house)
 {
+    Campaign_Enemies_Forget(this);
     Flagged = HOUSE_NONE;
     Reload = 0;
     Ammo = Class->MaxAmmo;

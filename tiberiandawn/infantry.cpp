@@ -79,6 +79,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "ccini.h"
 
 int const InfantryClass::HumanShape[32] = {0, 0, 7, 7, 7, 7, 6, 6, 6, 6, 5, 5, 5, 5, 5, 4,
@@ -234,6 +235,7 @@ InfantryClass::InfantryClass(InfantryType classid, HousesType house)
     : Class(&InfantryTypeClass::As_Reference(classid))
     , FootClass(house)
 {
+    Campaign_Enemies_Forget(this);
 
     /*
     **	For two shooters, clear out the second shot flag -- it will be set the first time

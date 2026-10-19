@@ -1,0 +1,9 @@
+# Native campaign enemy multiplier probe
+
+This offline entry point temporarily replaces missionstarts.cpp to exercise the real engine. Restore missionstarts.cpp immediately after building the private probe, and rebuild the normal vanillatd before installation. Use dummy SDL video/audio and ALSOFT_DRIVERS=null. VANILLA_MISSION_START_DIR must point to a private evidence folder with live-asset DataPath, fixture.sav (Blackout campaign start), and starts/savegame.100–155 plus 200–224 copied from the original installed start saves. Never overwrite live user saves.
+
+Record baseline.txt with Campaign_Enemies_Apply temporarily disabled and VANILLA_ENEMY_BASELINE=1. Restore the multiplier and rerun without that variable. GameToPlay must be GAME_NORMAL and GameActive=true before loading; inactive/menu state deliberately defers placement until gameplay.
+
+The probe compares every unit type and house against the baseline across all 81 native starts, then saves/reloads each. It separately checks real hostile vehicle/infantry/aircraft placement, unaffected own/allied/neutral units and buildings, damaged HP/ammo preservation, optional-footer-free native saves, unlimbo/unload idempotence, later production/reinforcement creation, skirmish exclusion, updated companion movement orders, recycled native heap IDs, and three repeated progress reloads. A private savegame.097 allows actual rendering. A negative control with the multiplier disabled must fail doubling checks; the restored implementation must pass.
+
+Only on-map mobile enemies are multiplied. Units waiting in transport/off-map are handled after entering the map. The original scripted actor retains its trigger/team/cargo links; its companion copies subsequent mission/target/destination changes. Busy terrain within six cells or a full original engine heap defers placement and retries once per simulation second. Existing heap limits are preserved.

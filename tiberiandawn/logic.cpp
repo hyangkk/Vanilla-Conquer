@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "logic.h"
 
 static unsigned FramesPerSecond = 0;
@@ -180,6 +181,7 @@ void LogicClass::AI(void)
     int index;
 
     FramesPerSecond++;
+    if (Frame % TICKS_PER_SECOND == 0) Campaign_Enemies_Apply();
 
     /*
     **	Crate regeneration is handled here.

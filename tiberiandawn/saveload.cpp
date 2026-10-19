@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "campaignperks.h"
 #include "campaigncredits.h"
 #include "campaigntech.h"
@@ -253,7 +254,7 @@ bool Save_Game(const char* file_name, const char* descr)
     /*
     **	Save miscellaneous variables.
     */
-    if (!Save_Misc_Values(file)) {
+    if (!Save_Misc_Values(file) || !Campaign_Enemies_Save(file)) {
         file.Close();
         Decode_All_Pointers();
         return (false);
@@ -483,7 +484,7 @@ bool Load_Game(const char* file_name)
     /*
     **	Load miscellaneous variables, including the map size & the Theater
     */
-    if (!Load_Misc_Values(file)) {
+    if (!Load_Misc_Values(file) || !Campaign_Enemies_Load(file)) {
         file.Close();
         return (false);
     }
@@ -501,6 +502,7 @@ bool Load_Game(const char* file_name)
     if (Frame == 0) Apply_Campaign_Starting_Credits();
 
     ScenarioInit = 0;
+    Campaign_Enemies_Apply();
     // Old saves may contain a sidebar calculated before campaign unlock was enabled.
     if (Campaign_All_Tech(PlayerPtr)) PlayerPtr->IsRecalcNeeded = true;
 

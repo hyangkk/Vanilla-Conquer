@@ -92,6 +92,7 @@ set(TIBDAWN_SRC
     rules.cpp
     saveload.cpp
     missionstarts.cpp
+    campaignenemies.cpp
     scenario.cpp
     scenarioini.cpp
     score.cpp

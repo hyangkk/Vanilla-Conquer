@@ -88,6 +88,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "ccini.h"
 
 /***********************************************************************************************
@@ -212,6 +213,7 @@ AircraftClass::AircraftClass(AircraftType classid, HousesType house)
     : Class(&AircraftTypeClass::As_Reference(classid))
     , FootClass(house)
 {
+    Campaign_Enemies_Forget(this);
     /*
     **	For two shooters, clear out the second shot flag -- it will be set the first time
     **	the object fires. For non two shooters, set the flag since it will never be cleared
