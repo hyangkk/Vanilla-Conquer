@@ -6,6 +6,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <algorithm>
 static int failures;
 static void Check(const char* label,bool ok){std::printf("%s %s\n",ok?"PASS":"FAIL",label);std::fflush(stdout);if(!ok)++failures;}
 static std::vector<FootClass*> Army(){std::vector<FootClass*> a;for(int i=0;i<Units.Count();++i)a.push_back(Units.Ptr(i));for(int i=0;i<Infantry.Count();++i)a.push_back(Infantry.Ptr(i));for(int i=0;i<Aircraft.Count();++i)a.push_back(Aircraft.Ptr(i));return a;}
@@ -39,7 +40,7 @@ bool Generate_Mission_Starts(const char* directory){
  tank->Strength=211;tank->Ammo=2;
  // Save an empty bookkeeping footer, then trim it to reproduce a genuinely old native save.
  std::string legacy=dir+"/legacy.sav";Check("save undoubled fixture",Save_Game(legacy.c_str(),"OLD UNDOUBLED ARMY"));
- {std::ifstream in(legacy,std::ios::binary);std::vector<char> data((std::istreambuf_iterator<char>(in)),{});in.close();Check("empty footer exists",data.size()>16);data.resize(data.size()-16);std::ofstream out(legacy,std::ios::binary|std::ios::trunc);out.write(data.data(),data.size());}
+ {std::ifstream in(legacy,std::ios::binary);std::vector<char> data((std::istreambuf_iterator<char>(in)),{});in.close();const std::string marker="CNCENM01";auto footer=std::search(data.begin(),data.end(),marker.begin(),marker.end());Check("empty footer exists",footer!=data.end());data.resize(footer-data.begin());std::ofstream out(legacy,std::ios::binary|std::ios::trunc);out.write(data.data(),data.size());}
  Check("legacy native save loads",Load_Game(legacy.c_str()));Check("old save doubles enemy once",EnemyCount()==6);
  FootClass* source=nullptr;FootClass* companion=nullptr;for(auto f:Army())if(!f->IsInLimbo&&f->What_Am_I()==RTTI_UNIT&&f->House==HouseClass::As_Pointer(HOUSE_BAD)){if(!source)source=f;else companion=f;}
  Check("cloned tank preserves HP and ammo",source&&companion&&source->Strength==211&&companion->Strength==211&&source->Ammo==2&&companion->Ammo==2);

@@ -5,6 +5,7 @@ class FileClass;
 void Campaign_Enemies_Reset();
 void Campaign_Enemies_Forget(const TechnoClass* object);
 void Campaign_Enemies_Apply();
+void Campaign_Enemies_Mark_Extra(const TechnoClass* object);
 bool Campaign_Enemies_Save(FileClass& file);
 bool Campaign_Enemies_Load(FileClass& file);
 #endif

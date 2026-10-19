@@ -1,6 +1,7 @@
 // Runtime bookkeeping stays outside serialized game object layouts.
 #include "function.h"
 #include "campaignenemies.h"
+#include "campaignwaves.h"
 #include <cstdint>
 #include <cstring>
 #include <set>
@@ -90,7 +91,8 @@ bool Duplicate(FootClass* original)
     return true;
 }
 }
-void Campaign_Enemies_Reset() { processed.clear(); companions.clear(); }
+void Campaign_Enemies_Reset() { processed.clear(); companions.clear(); Campaign_Waves_Reset(); }
+void Campaign_Enemies_Mark_Extra(const TechnoClass* object) { processed.insert(object->As_Target()); }
 void Campaign_Enemies_Forget(const TechnoClass* object) {
     TARGET id=object->As_Target(); processed.erase(id); companions.erase(id);
     for (auto it=companions.begin(); it!=companions.end();) {
@@ -124,7 +126,7 @@ bool Campaign_Enemies_Save(FileClass& file)
             std::uint32_t(entry.second.target), std::uint32_t(entry.second.destination), std::uint32_t(entry.second.mission)};
         if (file.Write(data,sizeof(data)) != sizeof(data)) return false;
     }
-    return true;
+    return Campaign_Waves_Save(file);
 }
 bool Campaign_Enemies_Load(FileClass& file)
 {
@@ -147,5 +149,5 @@ bool Campaign_Enemies_Load(FileClass& file)
         if (data[4] != std::uint32_t(MISSION_NONE) && data[4] >= MISSION_COUNT) return false;
         companions[TARGET(data[0])] = {TARGET(data[1]),TARGET(data[2]),TARGET(data[3]),MissionType(data[4])};
     }
-    return true;
+    return Campaign_Waves_Load(file);
 }
