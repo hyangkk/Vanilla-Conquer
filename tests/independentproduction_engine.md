@@ -9,3 +9,5 @@ The three player defenses must complete after exactly 15 game ticks with zero ph
 Completed stationary defenses fire 34 real projectiles at persistent targets. Skip warm-up and compare 30 intervals: stock/enemy versus current player Obelisk 2790/1380, Advanced Guard Tower 780/390, SAM 1995/495. The previous player SAM profile was 1005 ticks, so the new speed is 2.0303x that profile. Integer simulation ticks account for the small difference from exact doubling. Compare against the previous implementation as a negative control; then restore and rerun.
 
 SAM range, sight, ground/air targeting, and existing-save ownership retain their separate samupgrade_engine.cpp coverage. savegame.093 is a private, fully revealed visual fixture with one soldier, no construction yard, no MCV, and the populated sidebar; no fixture visibility or trigger changes ship.
+
+Every eligible infantry type additionally checks a 100,000-credit bonus after native exit. Duplicate exit events and save/reload must retain the exact balance without another award. Production costs remain separately charged.

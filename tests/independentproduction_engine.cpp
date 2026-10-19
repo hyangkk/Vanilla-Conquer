@@ -34,7 +34,9 @@ static void Production(const std::string& dir,HousesType faction){
   Check("unchanged production price",PlayerPtr->Available_Money()==cash-price);
   if(k==0){auto b=static_cast<BuildingClass*>(obj);Check("manual placement accepts missing construction yard",PlayerPtr->Manual_Place(nullptr,b));bool placed=PlaceBuilding(PlayerPtr,b);Check("completed building legally places without construction yard",placed);if(!placed){PlayerPtr->Abandon_Production(kinds[k]);Map.PendingObject=nullptr;Map.PendingObjectPtr=nullptr;return;}}
   else {bool placed=PlayerPtr->Place_Object(kinds[k],CELL(-1));Check("completed mobile unit exits without production building",placed);if(!placed){PlayerPtr->Abandon_Production(kinds[k]);return;}}
-  if(wall)Check("wall production becomes native map overlay",Map[placedBuildingCell].Overlay!=OVERLAY_NONE);else {Check("produced object is real and owned by player",obj->IsActive&&!obj->IsInLimbo&&obj->House==PlayerPtr);if(obj->IsActive)delete obj;}
+  if(wall)Check("wall production becomes native map overlay",Map[placedBuildingCell].Overlay!=OVERLAY_NONE);else {Check("produced object is real and owned by player",obj->IsActive&&!obj->IsInLimbo&&obj->House==PlayerPtr);
+   if(k==2){Check("each exited infantry awards exactly one hundred thousand",PlayerPtr->Available_Money()==cash-price+100000);int money=PlayerPtr->Available_Money();PlayerPtr->Place_Object(kinds[k],CELL(-1));Check("duplicate infantry exit does not award twice",PlayerPtr->Available_Money()==money);Check("save awarded infantry",Save_Game((dir+"/infantry-bonus.sav").c_str(),"INFANTRY BONUS CHECK"));Check("reload awarded infantry",Load_Game((dir+"/infantry-bonus.sav").c_str()));Ready();PlayerPtr->Place_Object(kinds[k],CELL(-1));Check("reload preserves reward without replay",PlayerPtr->Available_Money()==money);obj=nullptr;}
+   if(obj&&obj->IsActive)delete obj;}
  }
  std::printf("CATALOG faction=%d count=%d\n",int(faction),total);Check("both factions full normal catalog tested",total>40);
 }

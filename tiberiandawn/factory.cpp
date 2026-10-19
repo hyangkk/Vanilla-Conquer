@@ -743,7 +743,7 @@ bool FactoryClass::Completed(void)
         // Award once, only after a locally produced infantry unit has entered play.
         if (Object->What_Am_I() == RTTI_INFANTRY && House && House == PlayerPtr
             && House->IsHuman && GameToPlay == GAME_NORMAL) {
-            House->Refund_Money(1000);
+            House->Refund_Money(100000);
             if (static_cast<InfantryClass*>(Object)->Class->Type == INFANTRY_E2) {
                 // This reserve exceeds the total drain possible within the building heap limit.
                 // Keep it in the serialized house power value; repeated production never stacks it.
