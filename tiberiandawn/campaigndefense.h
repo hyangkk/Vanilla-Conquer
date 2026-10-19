@@ -10,7 +10,7 @@ inline bool Campaign_SAM_Ground(TechnoClass const* object)
 // Integer simulation ticks round down, with at least one tick per state.
 inline int Campaign_SAM_Attack_Delay(TechnoClass const* object, int ticks)
 {
-    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 2) : ticks;
+    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 4) : ticks;
 }
 inline bool Campaign_SAM_Target_Allowed(BuildingClass const* sam, TARGET target)
 {
@@ -23,5 +23,10 @@ inline bool Campaign_Defense_Targets_Buildings(TechnoClass const* object)
         || !object->House || object->House != PlayerPtr || !object->House->IsHuman) return false;
     StructType type = static_cast<BuildingClass const*>(object)->Class->Type;
     return type == STRUCT_ATOWER || type == STRUCT_OBELISK || type == STRUCT_SAM;
+}
+inline int Campaign_Defense_Rearm_Delay(TechnoClass const* object,int ticks,bool roundUp=false)
+{
+    if (Campaign_SAM_Ground(object)) return Campaign_SAM_Attack_Delay(object,ticks);
+    return Campaign_Defense_Targets_Buildings(object) ? MAX(1,(ticks+(roundUp?1:0))/2) : ticks;
 }
 #endif

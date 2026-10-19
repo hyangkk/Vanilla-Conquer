@@ -75,6 +75,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "common/renderlayers.h"
 #include "settings.h"
 
@@ -1986,7 +1987,7 @@ bool SidebarClass::StripClass::Recalc(void)
     for (int index = 0; index < BuildableCount; index++) {
         TechnoTypeClass const* tech = Fetch_Techno_Type(Buildables[index].BuildableType, Buildables[index].BuildableID);
         if (tech != NULL) {
-            ok = tech->Who_Can_Build_Me(true, false, PlayerPtr->Class->House) != NULL;
+            ok = Campaign_All_Tech_Type(tech,PlayerPtr) || tech->Who_Can_Build_Me(true, false, PlayerPtr->Class->House) != NULL;
         } else {
             switch (Buildables[index].BuildableID) {
             case SPC_ION_CANNON:
@@ -2360,7 +2361,7 @@ int SidebarClass::StripClass::SelectClass::Action(unsigned flags, KeyNumType& ke
                                 Map.IsTargettingMode = true;
                             } else {
                                 BuildingClass* builder = pending->Who_Can_Build_Me(false, false);
-                                if (!builder) {
+                                if (!builder && !Campaign_All_Tech_Type(pending->Techno_Type_Class(),PlayerPtr)) {
                                     OutList.Add(EventClass(EventClass::ABANDON, otype, oid));
                                     Speak(VOX_NO_FACTORY);
                                 } else {

@@ -2279,9 +2279,9 @@ void TechnoClass::Assign_Target(TARGET target)
 int TechnoClass::Rearm_Delay(bool second) const
 {
     if (second) {
-        return Campaign_SAM_Attack_Delay(this, ((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
+        return Campaign_Defense_Rearm_Delay(this, ((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
     }
-    return Campaign_SAM_Attack_Delay(this, 9);
+    return Campaign_Defense_Rearm_Delay(this, 9, true);
 }
 
 /***********************************************************************************************

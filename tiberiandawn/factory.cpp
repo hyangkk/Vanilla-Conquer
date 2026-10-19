@@ -253,13 +253,15 @@ void FactoryClass::AI(void)
             stages = MAX(stages, 1);
         }
 
-        // Advance the existing production clock four times faster without changing
-        // costs, stage precision or the saved FactoryClass layout.
+        // Distribute one full production clock over exactly one game second.
+        // Existing stage/timer fields preserve partial production across saves.
         if (GameToPlay == GAME_NORMAL && Object && House == PlayerPtr && House->IsHuman
             && Object->What_Am_I() == RTTI_BUILDING) {
             auto type = static_cast<BuildingClass*>(Object)->Class->Type;
             if (type == STRUCT_OBELISK || type == STRUCT_ATOWER || type == STRUCT_SAM) {
-                stages *= 4;
+                const int total = STEP_COUNT * Fetch_Rate();
+                const int phase = Frame % TICKS_PER_SECOND;
+                stages = total * (phase + 1) / TICKS_PER_SECOND - total * phase / TICKS_PER_SECOND;
             }
         }
 

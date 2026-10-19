@@ -37,7 +37,7 @@ static void Production(const std::string& dir){
   Check("factory starts building",factory->Start());int cost=factory->Get_Object()->PurchasePrice;
   int ticks=0;while(!factory->Has_Completed()&&ticks<10000){
    ++Frame;if(!boosted)PlayerPtr=enemy;factory->AI();PlayerPtr=player;++ticks;
-   if(reload&&ticks==20){int stage=factory->Completion();Check("save in-progress production",Save_Game((dir+"/production.sav").c_str(),"PRODUCTION RESUME"));Check("reload in-progress production",Load_Game((dir+"/production.sav").c_str()));Ready();player=PlayerPtr;enemy=HouseClass::As_Pointer(HOUSE_BAD);factory=Factories.Ptr(id);Check("production stage survives load",factory->Completion()==stage);}
+   if(reload&&ticks==5){int stage=factory->Completion();Check("save in-progress production",Save_Game((dir+"/production.sav").c_str(),"PRODUCTION RESUME"));Check("reload in-progress production",Load_Game((dir+"/production.sav").c_str()));Ready();player=PlayerPtr;enemy=HouseClass::As_Pointer(HOUSE_BAD);factory=Factories.Ptr(id);Check("production stage survives load",factory->Completion()==stage);}
   }
   Check("factory finishes and charges unchanged full price",factory->Has_Completed()&&player->Credits==50000-cost);
   player->Set_Factory(RTTI_BUILDING,nullptr);delete factory;return ticks;
@@ -45,7 +45,7 @@ static void Production(const std::string& dir){
  for(auto type:{STRUCT_OBELISK,STRUCT_ATOWER,STRUCT_SAM,STRUCT_POWER}){
   int old=duration(type,false,false);int fast=duration(type,true,false);int resumed=duration(type,true,true);
   std::printf("BUILD TYPE %d baseline=%d new=%d resumed=%d\n",int(type),old,fast,resumed);
-  Check("selected defense production takes one quarter; other buildings unchanged",type==STRUCT_POWER?fast==old:fast==(old+3)/4);
+  Check("selected defense production takes one second; other buildings unchanged",type==STRUCT_POWER?fast==old:fast==TICKS_PER_SECOND);
   Check("save reload preserves exact remaining accelerated time",resumed==fast);
  }
  // The same actual factory remains at baseline speed for AI and skirmish.

@@ -900,6 +900,13 @@ void BuildingClass::AI(void)
     **	the bstate change to occur immediately before the MissionClass::AI.
     */
     bool stagechange = Graphic_Logic();
+    // The existing SAM door clock already runs at its one-tick minimum.
+    // Advance it twice while preserving its exact rising/lowering endpoints.
+    if (Campaign_SAM_Ground(this) && Mission == MISSION_ATTACK
+        && ((Status == SAM_RISING && Fetch_Stage() < 15)
+            || (Status == SAM_LOWERING && Fetch_Stage() < 63))) {
+        stagechange = Graphic_Logic() || stagechange;
+    }
     bool toloop = false;
 
     /*
@@ -1081,7 +1088,7 @@ void BuildingClass::AI(void)
                     IsCharged = false;
                     IsCharging = true;
                     Set_Stage(0);
-                    Set_Rate(OBELISK_ANIMATION_RATE);
+                    Set_Rate(Campaign_Defense_Rearm_Delay(this, OBELISK_ANIMATION_RATE));
                     Sound_Effect(VOC_LASER_POWER, Coord);
                 }
             }
@@ -1281,7 +1288,7 @@ void BuildingClass::AI(void)
         */
         if (PrimaryFacing.Is_Rotating()) {
             if (*this == STRUCT_SAM) {
-                if (PrimaryFacing.Rotation_Adjust(Campaign_SAM_Ground(this) ? 30 : 15)) {
+                if (PrimaryFacing.Rotation_Adjust(Campaign_SAM_Ground(this) ? 60 : 15)) {
                     Mark(MARK_CHANGE);
                 }
             } else {
@@ -4406,7 +4413,11 @@ int BuildingClass::Mission_Attack(void)
                         if (error == FIRE_OK) {
                             Fire_At(TarCom, 0);
                             Status = SAM_LOCKING;
-                            return Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3);
+                            // Compensate for three fixed one-tick state transitions that cannot
+                            // themselves be halved by the integer mission scheduler.
+                            return Campaign_SAM_Ground(this)
+                                ? MAX(1, Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3) - 3)
+                                : TICKS_PER_SECOND * 3;
                         }
                     }
                 }
