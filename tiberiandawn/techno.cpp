@@ -112,6 +112,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 
 /***************************************************************************
 **	Cloaking control values.
@@ -1421,7 +1422,8 @@ bool TechnoClass::Evaluate_Object(ThreatType method, int mask, int range, Techno
     **	SPECIAL CASE: Friendly units won't automatically fire on buildings
     **	if the building is not aggressive.
     */
-    if (House->IsHuman && otype == RTTI_BUILDING && tclass->Primary == WEAPON_NONE)
+    if (House->IsHuman && otype == RTTI_BUILDING && tclass->Primary == WEAPON_NONE
+        && !Campaign_Defense_Targets_Buildings(this))
         return (false);
 
     /*

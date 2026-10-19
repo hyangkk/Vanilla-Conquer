@@ -95,6 +95,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 #include "ccini.h"
 
 /*
@@ -2858,7 +2859,7 @@ TARGET BuildingClass::Greatest_Threat(ThreatType threat) const
     if (*this != STRUCT_SAM) {
         threat = threat | (THREAT_INFANTRY | THREAT_BOATS | THREAT_VEHICLES | THREAT_RANGE);
 
-        if (!House->IsHuman) {
+        if (!House->IsHuman || Campaign_Defense_Targets_Buildings(this)) {
             threat = threat | THREAT_BUILDINGS;
         }
         //		threat = threat & ~THREAT_AIR;
