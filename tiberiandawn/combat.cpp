@@ -367,14 +367,16 @@ void Campaign_SAM_Health_Apply_All()
 }
 
 namespace {
+constexpr unsigned samBounceLimit=10;
 struct SAMChain {
-    unsigned remaining=2,rawDamage=0,count=0;
+    unsigned remaining=samBounceLimit,rawDamage=0,count=0;
     HousesType owner=HOUSE_NONE;
     // Count every attempt; TARGET_NONE records a detonation after target loss.
-    std::array<TARGET,3> visited{};
+    std::array<TARGET,samBounceLimit+1> visited{};
 };
 std::map<TARGET,SAMChain> samChains;
-const char chainMagic[8]={'C','N','C','C','H','N','0','2'};
+const char chainMagic[8]={'C','N','C','C','H','N','0','3'};
+const char branchChainMagic[8]={'C','N','C','C','H','N','0','2'};
 const char oldChainMagic[8]={'C','N','C','C','H','N','0','1'};
 std::vector<TARGET> oldChainPower;
 }
@@ -413,7 +415,7 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     SAMChain chain=it->second;
     if (GameToPlay!=GAME_NORMAL || *bullet!=BULLET_SAM) return false;
     // A miss still consumes a hop and continues from the missile's position.
-    // Prefer targets not yet attempted by this branch; reuse if none remain.
+    // Prefer targets not yet attempted by this missile; reuse if none remain.
     TARGET attempted=(target && target->IsActive)?target->As_Target():TARGET_NONE;
     bool hit=target && target->IsActive && !target->IsInLimbo && target->Strength>0
         && bullet->Distance(target)<ICON_LEPTON_W/2;
@@ -444,26 +446,26 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     for (int i=0;i<Infantry.Count();++i) consider(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) consider(Aircraft.Ptr(i));
     for (int i=0;i<Buildings.Count();++i) consider(Buildings.Ptr(i));
-    if (candidates.empty()) candidates.swap(previousTargets);
+    if (candidates.empty()) {
+        candidates.swap(previousTargets);
+        // When revisiting, bounce away from the current target if another exists.
+        if (candidates.size()>1) candidates.erase(std::remove_if(candidates.begin(),candidates.end(),
+            [attempted](TechnoClass* unit){return unit->As_Target()==attempted;}),candidates.end());
+    }
     if (candidates.empty()) return true;
     std::stable_sort(candidates.begin(),candidates.end(),[origin](TechnoClass* a,TechnoClass* b) {
         return Distance(origin,a->Target_Coord())<Distance(origin,b->Target_Coord());
     });
-    --chain.remaining;
-    // Each child inherits its own ancestry and remaining generation count.
-    // Prefer different targets; cycle valid candidates when fewer than three exist.
-    for (unsigned i=0;i<3;++i) {
-        auto next=candidates[i%candidates.size()];
-        auto bounce=new BulletClass(BULLET_SAM);
-        if (!bounce) break;
-        bounce->Assign_Target(next->As_Target());
-        bounce->Strength=chain.rawDamage;
-        // Keep Payback unset during Unlimbo: infantry scatter must be measured
-        // from this impact rather than clamped to the original SAM's range.
-        if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;continue;}
-        bounce->Payback=bullet->Payback;
-        samChains[bounce->As_Target()]=chain;
-    }
+    auto next=candidates.front();
+    auto bounce=new BulletClass(BULLET_SAM);
+    if (!bounce) return true;
+    bounce->Assign_Target(next->As_Target());
+    bounce->Strength=chain.rawDamage;
+    // Keep Payback unset during Unlimbo: infantry scatter must be measured
+    // from this impact rather than clamped to the original SAM's range.
+    if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;return true;}
+    bounce->Payback=bullet->Payback;
+    --chain.remaining;samChains[bounce->As_Target()]=chain;
     return true;
 }
 bool Campaign_SAM_Chain_Save(FileClass& file)
@@ -472,7 +474,8 @@ bool Campaign_SAM_Chain_Save(FileClass& file)
     if (file.Write(chainMagic,8)!=8 || file.Write(&count,sizeof(count))!=sizeof(count)) return false;
     for (auto const& entry:samChains) {
         auto const& c=entry.second;
-        std::uint32_t data[8]={std::uint32_t(entry.first),c.remaining,c.rawDamage,std::uint32_t(c.owner),c.count,std::uint32_t(c.visited[0]),std::uint32_t(c.visited[1]),std::uint32_t(c.visited[2])};
+        std::uint32_t data[5+samBounceLimit+1]={std::uint32_t(entry.first),c.remaining,c.rawDamage,std::uint32_t(c.owner),c.count};
+        for (unsigned j=0;j<c.visited.size();++j) data[5+j]=c.visited[j];
         if (file.Write(data,sizeof(data))!=sizeof(data)) return false;
     }
     return true;
@@ -481,17 +484,21 @@ bool Campaign_SAM_Chain_Load(FileClass& file)
 {
     Campaign_SAM_Chain_Reset();char header[8];int n=file.Read(header,8);
     if (!n) return true;
-    bool legacy=n==8 && !std::memcmp(header,oldChainMagic,8);
+    bool legacyPower=n==8 && !std::memcmp(header,oldChainMagic,8);
+    bool legacy=legacyPower || (n==8 && !std::memcmp(header,branchChainMagic,8));
     if (n!=8 || (!legacy && std::memcmp(header,chainMagic,8))) return false;
     std::uint32_t count;
     if (file.Read(&count,sizeof(count))!=sizeof(count)||count>BULLET_MAX) return false;
     for (unsigned i=0;i<count;++i) {
-        std::uint32_t data[8];if (file.Read(data,sizeof(data))!=sizeof(data)) return false;
+        std::uint32_t data[5+samBounceLimit+1]{};
+        unsigned words=legacy?8:5+samBounceLimit+1,history=words-5;
+        unsigned bytes=words*sizeof(data[0]),limit=legacy?2:samBounceLimit;
+        if (file.Read(data,bytes)!=bytes) return false;
         if (Target_Kind(data[0])!=KIND_BULLET||Target_Value(data[0])>=BULLET_MAX||samChains.count(data[0])
-            || data[1]>2||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>2||data[1]+data[4]!=2) return false;
-        SAMChain chain;chain.remaining=data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
-        for (unsigned j=0;j<3;++j) {chain.visited[j]=data[5+j];if (j<chain.count && data[5+j]!=TARGET_NONE && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
-        if (legacy) {
+            || data[1]>limit||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>limit||data[1]+data[4]!=limit) return false;
+        SAMChain chain;chain.remaining=legacy?samBounceLimit-data[4]:data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
+        for (unsigned j=0;j<history;++j) {chain.visited[j]=data[5+j];if (j<chain.count && data[5+j]!=TARGET_NONE && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
+        if (legacyPower) {
             chain.rawDamage=MIN(chain.rawDamage*2,32767u);
             oldChainPower.push_back(data[0]);
         }
