@@ -303,7 +303,7 @@ void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoCl
 
 namespace {
 std::array<unsigned char, BUILDING_MAX> samFractions{};
-const char samMagic[8]={'C','N','C','S','A','M','0','1'};
+const char samMagic[8]={'C','N','C','S','A','M','0','2'};
 }
 void Campaign_SAM_Volley_Reset() { samFractions.fill(0); }
 void Campaign_SAM_Volley_Forget(BuildingClass* sam)
@@ -322,13 +322,13 @@ void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
             && unit->House && unit->House!=sam->House && unit->House->Class->House!=HOUSE_NEUTRAL
             && !unit->House->Is_Ally(sam->House) && !sam->House->Is_Ally(unit->House)
             && Map.In_Radar(Coord_Cell(unit->Coord))
-            && Distance(sam->Center_Coord(),unit->Center_Coord())<=10*ICON_LEPTON_W) ++enemies;
+            && Distance(sam->Center_Coord(),unit->Center_Coord())<=sam->Weapon_Range(weapon)/2) ++enemies;
     };
     for (int i=0;i<Units.Count();++i) count(Units.Ptr(i));
     for (int i=0;i<Infantry.Count();++i) count(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) count(Aircraft.Ptr(i));
-    int credit=enemies+samFractions[id],extra=credit/5;
-    samFractions[id]=credit%5;
+    int credit=enemies*5+samFractions[id],extra=credit/10;
+    samFractions[id]=credit%10;
     unsigned char arm=sam->Arm;bool second=sam->IsSecondShot;
     // Qualified base calls create real missiles without recursively triggering a
     // new volley. Restore the normal salvo's rearm/shot phase afterwards.
@@ -347,9 +347,14 @@ bool Campaign_SAM_Volley_Load(FileClass& file)
     Campaign_SAM_Volley_Reset();
     char header[8];int n=file.Read(header,sizeof(header));
     if (!n) return true; // Existing saves have no fractional-volley extension.
-    if (n!=sizeof(header)||std::memcmp(header,samMagic,sizeof(header))) return false;
+    const char oldMagic[8]={'C','N','C','S','A','M','0','1'};
+    bool legacy=n==sizeof(header)&&!std::memcmp(header,oldMagic,sizeof(header));
+    if (n!=sizeof(header)||(!legacy&&std::memcmp(header,samMagic,sizeof(header)))) return false;
     decltype(samFractions) data{};
     if (file.Read(data.data(),data.size())!=int(data.size())) return false;
-    for (auto value:data) if (value>=5) return false;
+    for (auto& value:data) {
+        if (value >= (legacy?5:10)) return false;
+        if (legacy) value*=2; // Preserve old fifths exactly as tenths.
+    }
     samFractions=data;return true;
 }
