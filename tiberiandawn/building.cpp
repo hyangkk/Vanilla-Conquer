@@ -827,7 +827,6 @@ BulletClass* BuildingClass::Fire_At(TARGET target, int which)
 
     bullet = TechnoClass::Fire_At(target, which);
     if (bullet) {
-        Campaign_SAM_Volley(this, target, which);
         if (*this == STRUCT_SAM) {
             AnimClass* anim =
                 new AnimClass((AnimType)(ANIM_SAM_N + Dir_Facing(PrimaryFacing.Current())), Center_Coord());
@@ -902,6 +901,10 @@ void BuildingClass::AI(void)
     */
     Campaign_SAM_Health_Apply(this);
     bool stagechange = Graphic_Logic();
+    if (Campaign_SAM_Ground(this) && stagechange && Mission==MISSION_ATTACK) {
+        if (Status==SAM_RISING) Set_Stage(MIN(Fetch_Stage()+1,15));
+        if (Status==SAM_LOWERING) Set_Stage(MIN(Fetch_Stage()+1,63));
+    }
     bool toloop = false;
 
     /*
@@ -4417,7 +4420,7 @@ int BuildingClass::Mission_Attack(void)
                             // Offset the fixed state-transition tick so the sustained cycle
                             // is exactly twice the previous fast SAM profile.
                             return Campaign_SAM_Ground(this)
-                                ? MAX(1, Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3) - 1)
+                                ? MAX(1, Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3) - 3)
                                 : TICKS_PER_SECOND * 3;
                         }
                     }

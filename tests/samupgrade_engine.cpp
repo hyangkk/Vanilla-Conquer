@@ -137,13 +137,13 @@ static int Cadence(const char* directory,bool player){
  int duration=shots[33]-shots[3];
  std::printf("CADENCE %s ticks=%d first=%d last=%d rearm=%d,%d\n",player?"PLAYER":"ENEMY",duration,shots[3],shots[33],sam->Rearm_Delay(false),sam->Rearm_Delay(true));
  int normal=(int)Weapons[WEAPON_NIKE].ROF*sam->House->ROFBias+3;
- Check("SAM rearm delay follows owner only",sam->Rearm_Delay(false)==(player?4:9)&&sam->Rearm_Delay(true)==(player?normal/2:normal));
+ Check("SAM rearm delay follows owner only",sam->Rearm_Delay(false)==(player?2:9)&&sam->Rearm_Delay(true)==(player?normal/4:normal));
  return duration;
 }
 bool Generate_Mission_Starts(const char* directory){
  Ground_Check(directory);
  int oldTicks=Cadence(directory,false),newTicks=Cadence(directory,true);
  double speed=newTicks?double(oldTicks)/newTicks:0;std::printf("SUSTAINED SPEED MULTIPLIER %.6f\n",speed);
- Check("native sustained firing runs at half the previous fast-profile rate within tick rounding",oldTicks==1995&&newTicks==990);
+ Check("native sustained firing is twice the previous 990-tick profile",oldTicks==1995&&newTicks==495);
  std::printf("TOTAL FAILURES %d\n",failures);return failures==0;
 }

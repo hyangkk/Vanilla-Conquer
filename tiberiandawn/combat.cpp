@@ -255,63 +255,6 @@ void Campaign_SAM_Volley_Forget(BuildingClass* sam)
     int id=Buildings.ID(sam);
     if (id>=0 && id<BUILDING_MAX) {samFractions[id]=0;samHealthBoost[id]=0;}
 }
-void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
-{
-    if (!Campaign_SAM_Ground(sam)) return;
-    int id=Buildings.ID(sam);
-    if (id<0 || id>=BUILDING_MAX) return;
-    int enemies=0;
-    std::vector<TARGET> alternatives;
-    auto count=[&](FootClass* unit) {
-        if (unit && unit->IsActive && !unit->IsInLimbo && unit->Strength>0
-            && unit->House && unit->House!=sam->House && unit->House->Class->House!=HOUSE_NEUTRAL
-            && !unit->House->Is_Ally(sam->House) && !sam->House->Is_Ally(unit->House)
-            && Map.In_Radar(Coord_Cell(unit->Coord))) {
-            if (Distance(sam->Center_Coord(),unit->Center_Coord())<=sam->Weapon_Range(weapon)/2) ++enemies;
-            int value=0;
-            if (unit->As_Target()!=target && sam->Evaluate_Object(THREAT_NORMAL,1<<unit->What_Am_I(),0,unit,value))
-                alternatives.push_back(unit->As_Target());
-        }
-    };
-    for (int i=0;i<Units.Count();++i) count(Units.Ptr(i));
-    for (int i=0;i<Infantry.Count();++i) count(Infantry.Ptr(i));
-    for (int i=0;i<Aircraft.Count();++i) count(Aircraft.Ptr(i));
-    for (int i=0;i<Buildings.Count();++i) {
-        auto building=Buildings.Ptr(i);int value=0;
-        if (building!=sam && building->IsActive && !building->IsInLimbo && building->Strength>0
-            && building->House && building->House!=sam->House && building->House->Class->House!=HOUSE_NEUTRAL
-            && !sam->House->Is_Ally(building->House) && !building->House->Is_Ally(sam->House)
-            && building->As_Target()!=target && sam->Evaluate_Object(THREAT_NORMAL,1<<RTTI_BUILDING,0,building,value))
-            alternatives.push_back(building->As_Target());
-    }
-    int credit=enemies*5+samFractions[id],extra=credit/10;
-    samFractions[id]=credit%10;
-    const int missiles=MIN(extra,int(alternatives.size()));
-    std::vector<TARGET> nearest;
-    for (auto candidate:alternatives) {
-        auto object=As_Techno(candidate);
-        if (object && object->What_Am_I()!=RTTI_BUILDING) nearest.push_back(candidate);
-    }
-    std::stable_sort(nearest.begin(),nearest.end(),[sam](TARGET a,TARGET b) {
-        return Distance(sam->Center_Coord(),As_Techno(a)->Center_Coord())
-            < Distance(sam->Center_Coord(),As_Techno(b)->Center_Coord());
-    });
-    // Odd volleys give the nearest-unit half the spare missile. Remaining
-    // missiles retain the original distribution order without target reuse.
-    std::vector<TARGET> assigned;
-    for (int i=0;i<(missiles+1)/2 && i<int(nearest.size());++i) assigned.push_back(nearest[i]);
-    for (auto candidate:alternatives) {
-        if (int(assigned.size())>=missiles) break;
-        if (std::find(assigned.begin(),assigned.end(),candidate)==assigned.end()) assigned.push_back(candidate);
-    }
-    unsigned char arm=sam->Arm;bool second=sam->IsSecondShot;
-    // Qualified base calls create real missiles without recursively triggering a
-    // new volley. Restore the normal salvo's rearm/shot phase afterwards.
-    for (auto assignedTarget:assigned) {
-        if (!sam->TechnoClass::Fire_At(assignedTarget,weapon)) break;
-    }
-    sam->Arm=arm;sam->IsSecondShot=second;
-}
 bool Campaign_SAM_Volley_Save(FileClass& file)
 {
     return file.Write(samMagic,sizeof(samMagic))==sizeof(samMagic)
@@ -342,7 +285,8 @@ bool Campaign_SAM_Volley_Load(FileClass& file)
         if (file.Read(health.data(),health.size())!=int(health.size())) return false;
         for (auto value:health) if (value>1) return false;
     }
-    samFractions=data;samHealthBoost=health;return Campaign_SAM_Chain_Load(file);
+    // Consume legacy density credits for compatibility, but never restore them.
+    samHealthBoost=health;return Campaign_SAM_Chain_Load(file);
 }
 
 void Campaign_SAM_Health_Reset() { samHealthBoost.fill(0); }
@@ -379,6 +323,15 @@ const char chainMagic[8]={'C','N','C','C','H','N','0','3'};
 const char branchChainMagic[8]={'C','N','C','C','H','N','0','2'};
 const char oldChainMagic[8]={'C','N','C','C','H','N','0','1'};
 std::vector<TARGET> oldChainPower;
+void Slow_SAM_Flight(BulletClass* bullet)
+{
+    int speed=bullet->Get_Speed();
+    int desired=MAX(1,int(Fixed_To_Cardinal((int)bullet->Class->MaxSpeed,255))/2);
+    if (speed<=0 || speed==desired) return;
+    // Scale the remaining lifetime once; preserve the fuse target and arming state.
+    bullet->Timer=MIN(255,(int(bullet->Timer)*speed+desired-1)/desired);
+    bullet->Fly_Speed(256,(MPHType)desired);
+}
 }
 void Campaign_SAM_Chain_Reset() { samChains.clear();oldChainPower.clear(); }
 void Campaign_SAM_Chain_Forget(BulletClass* bullet)
@@ -390,6 +343,7 @@ void Campaign_SAM_Chain_Start(BulletClass* bullet)
     if (!bullet || *bullet!=BULLET_SAM || !Campaign_SAM_Ground(bullet->Payback)) return;
     SAMChain chain;chain.rawDamage=bullet->Strength;chain.owner=bullet->Payback->House->Class->House;
     samChains[bullet->As_Target()]=chain;
+    Slow_SAM_Flight(bullet);
 }
 void Campaign_SAM_Chain_Fixup()
 {
@@ -405,6 +359,7 @@ void Campaign_SAM_Chain_Fixup()
         }
         else if (std::find(oldChainPower.begin(),oldChainPower.end(),id)!=oldChainPower.end())
             bullet->Strength=samChains[id].rawDamage;
+        if (samChains.count(id)) Slow_SAM_Flight(bullet);
     }
     oldChainPower.clear();
 }
@@ -465,6 +420,7 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     // from this impact rather than clamped to the original SAM's range.
     if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;return true;}
     bounce->Payback=bullet->Payback;
+    Slow_SAM_Flight(bounce);
     --chain.remaining;samChains[bounce->As_Target()]=chain;
     return true;
 }

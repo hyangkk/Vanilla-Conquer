@@ -10,7 +10,7 @@ inline bool Campaign_SAM_Ground(TechnoClass const* object)
 // Integer simulation ticks round down, with at least one tick per state.
 inline int Campaign_SAM_Attack_Delay(TechnoClass const* object, int ticks)
 {
-    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 2) : ticks;
+    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 4) : ticks;
 }
 inline bool Campaign_SAM_Target_Allowed(BuildingClass const* sam, TARGET target)
 {
@@ -36,7 +36,6 @@ void Campaign_SAM_Chain_Reset();
 void Campaign_SAM_Chain_Fixup();
 bool Campaign_SAM_Chain_Save(FileClass& file);
 bool Campaign_SAM_Chain_Load(FileClass& file);
-void Campaign_SAM_Volley(BuildingClass* sam, TARGET target, int weapon);
 void Campaign_SAM_Volley_Reset();
 void Campaign_SAM_Volley_Forget(BuildingClass* sam);
 bool Campaign_SAM_Volley_Save(FileClass& file);
