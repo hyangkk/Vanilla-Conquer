@@ -361,6 +361,9 @@ void BulletClass::AI(void)
     **	map.
     */
     case IMPACT_EDGE:
+        // Physics retains the last valid world coordinate. A player SAM chain
+        // must use its miss path before this projectile is discarded as well.
+        Campaign_SAM_Chain_Impact(this,nullptr);
         //			if (IsLocked) {
         Mark();
         Delete_This();
