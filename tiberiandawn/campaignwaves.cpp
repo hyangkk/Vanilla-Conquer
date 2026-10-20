@@ -2,6 +2,7 @@
 #include "function.h"
 #include "campaignwaves.h"
 #include "campaignenemies.h"
+#include "campaigndefense.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -184,6 +185,7 @@ bool Spawn(HouseClass* house,TechnoClass* target)
 }
 void Campaign_Waves_Reset()
 {
+    Campaign_SAM_Volley_Reset();
     nextFrame=-1;wave=remaining=delivered=0;faction=HOUSE_NONE;entry=0;dinosaur=-1;arrivalLand.clear();
 }
 void Campaign_Waves_AI()
@@ -231,10 +233,11 @@ bool Campaign_Waves_Save(FileClass& file)
 {
     std::int32_t data[7]={nextFrame,std::int32_t(wave),std::int32_t(remaining),std::int32_t(delivered),
         std::int32_t(faction),std::int32_t(entry),dinosaur};
-    return file.Write(magic,sizeof(magic))==sizeof(magic) && file.Write(data,sizeof(data))==sizeof(data);
+    return file.Write(magic,sizeof(magic))==sizeof(magic) && file.Write(data,sizeof(data))==sizeof(data) && Campaign_SAM_Volley_Save(file);
 }
 bool Campaign_Waves_Load(FileClass& file)
 {
+    Campaign_SAM_Volley_Reset();
     char header[sizeof(magic)];int bytes=file.Read(header,sizeof(header));
     if (!bytes) return true; // The previous enemy multiplier footer ends here.
     if (bytes!=sizeof(header)||std::memcmp(header,magic,sizeof(magic))) return false;
@@ -244,5 +247,5 @@ bool Campaign_Waves_Load(FileClass& file)
         ||(data[2]>0&&(data[4]==HOUSE_NONE||data[5]==0))
         ||data[5]<0||data[5]>=MAP_CELL_TOTAL||(data[6]!=-1&&(data[6]<UNIT_TRIC||data[6]>UNIT_STEG))) return false;
     nextFrame=data[0];wave=data[1];remaining=data[2];delivered=data[3];faction=HousesType(data[4]);entry=CELL(data[5]);dinosaur=data[6];
-    return true;
+    return Campaign_SAM_Volley_Load(file);
 }

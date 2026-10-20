@@ -37,6 +37,9 @@
 #include "function.h"
 #include "campaigndefense.h"
 #include <vector>
+#include <array>
+#include <cstdint>
+#include <cstring>
 
 int Modify_Damage(int damage, WarheadType warhead, ArmorType armor);
 void Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, WarheadType warhead);
@@ -296,4 +299,57 @@ void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoCl
             }
         }
     }
+}
+
+namespace {
+std::array<unsigned char, BUILDING_MAX> samFractions{};
+const char samMagic[8]={'C','N','C','S','A','M','0','1'};
+}
+void Campaign_SAM_Volley_Reset() { samFractions.fill(0); }
+void Campaign_SAM_Volley_Forget(BuildingClass* sam)
+{
+    int id=Buildings.ID(sam);
+    if (id>=0 && id<BUILDING_MAX) samFractions[id]=0;
+}
+void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
+{
+    if (!Campaign_SAM_Ground(sam)) return;
+    int id=Buildings.ID(sam);
+    if (id<0 || id>=BUILDING_MAX) return;
+    int enemies=0;
+    auto count=[&](FootClass* unit) {
+        if (unit && unit->IsActive && !unit->IsInLimbo && unit->Strength>0
+            && unit->House && unit->House!=sam->House && unit->House->Class->House!=HOUSE_NEUTRAL
+            && !unit->House->Is_Ally(sam->House) && !sam->House->Is_Ally(unit->House)
+            && Map.In_Radar(Coord_Cell(unit->Coord))
+            && Distance(sam->Center_Coord(),unit->Center_Coord())<=10*ICON_LEPTON_W) ++enemies;
+    };
+    for (int i=0;i<Units.Count();++i) count(Units.Ptr(i));
+    for (int i=0;i<Infantry.Count();++i) count(Infantry.Ptr(i));
+    for (int i=0;i<Aircraft.Count();++i) count(Aircraft.Ptr(i));
+    int credit=enemies+samFractions[id],extra=credit/5;
+    samFractions[id]=credit%5;
+    unsigned char arm=sam->Arm;bool second=sam->IsSecondShot;
+    // Qualified base calls create real missiles without recursively triggering a
+    // new volley. Restore the normal salvo's rearm/shot phase afterwards.
+    for (int i=0;i<extra;++i) {
+        if (!sam->TechnoClass::Fire_At(target,weapon)) break;
+    }
+    sam->Arm=arm;sam->IsSecondShot=second;
+}
+bool Campaign_SAM_Volley_Save(FileClass& file)
+{
+    return file.Write(samMagic,sizeof(samMagic))==sizeof(samMagic)
+        && file.Write(samFractions.data(),samFractions.size())==int(samFractions.size());
+}
+bool Campaign_SAM_Volley_Load(FileClass& file)
+{
+    Campaign_SAM_Volley_Reset();
+    char header[8];int n=file.Read(header,sizeof(header));
+    if (!n) return true; // Existing saves have no fractional-volley extension.
+    if (n!=sizeof(header)||std::memcmp(header,samMagic,sizeof(header))) return false;
+    decltype(samFractions) data{};
+    if (file.Read(data.data(),data.size())!=int(data.size())) return false;
+    for (auto value:data) if (value>=5) return false;
+    samFractions=data;return true;
 }

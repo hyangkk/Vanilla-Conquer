@@ -2,7 +2,7 @@
 
 Use a private missionstarts.cpp substitution, SDL dummy video/audio, installed assets, private UserPath, and Blackout fixture.sav. Restore missionstarts.cpp immediately after building the diagnostic and rebuild the normal application before installing. Never modify live saves.
 
-A real local SAM missile has 250 raw damage versus the unchanged enemy 50 with equal firepower bias. Native tank HP loss at the impact center must be exactly 250 versus 50. GDI/Nod ownership, AI and skirmish are checked.
+A real local SAM missile has 100 raw damage versus the unchanged enemy 50 with equal firepower bias. Native tank HP loss at the impact center must be exactly 100 versus 50. GDI/Nod ownership, AI and skirmish are checked.
 
 Ground bursts use a fivefold radial distance and the existing AP armor/falloff curve evaluated at distance/5. The original nominal radius is 1.5 cells; the expanded radius is 7.5 cells, with a strict outside boundary. A dense fixture has over 32 targets and independently checks every target HP and cleared damage markers; a dynamic target list must not truncate the larger blast. Terrain and walls use the same radial falloff. Flying-aircraft blasts remain separate from ground victims and extend the same radial rule to nearby airborne aircraft.
 

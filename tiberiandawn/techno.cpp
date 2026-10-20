@@ -2360,7 +2360,7 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
     **	created.
     */
     int firepower = (weapon->Attack > 0) ? ((int)weapon->Attack * House->FirepowerBias) : 0;
-    if (Campaign_SAM_Ground(this)) firepower *= 5;
+    if (Campaign_SAM_Ground(this)) firepower *= 2;
     bullet = new BulletClass(weapon->Fires);
     if (bullet) {
         bullet->Assign_Target(target);

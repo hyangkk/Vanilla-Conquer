@@ -30,4 +30,9 @@ inline int Campaign_Defense_Rearm_Delay(TechnoClass const* object,int ticks,bool
     return Campaign_Defense_Targets_Buildings(object) ? MAX(1,(ticks+(roundUp?1:0))/2) : ticks;
 }
 void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, WarheadType warhead, bool airborne);
+void Campaign_SAM_Volley(BuildingClass* sam, TARGET target, int weapon);
+void Campaign_SAM_Volley_Reset();
+void Campaign_SAM_Volley_Forget(BuildingClass* sam);
+bool Campaign_SAM_Volley_Save(FileClass& file);
+bool Campaign_SAM_Volley_Load(FileClass& file);
 #endif

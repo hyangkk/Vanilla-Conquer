@@ -827,6 +827,7 @@ BulletClass* BuildingClass::Fire_At(TARGET target, int which)
 
     bullet = TechnoClass::Fire_At(target, which);
     if (bullet) {
+        Campaign_SAM_Volley(this, target, which);
         if (*this == STRUCT_SAM) {
             AnimClass* anim =
                 new AnimClass((AnimType)(ANIM_SAM_N + Dir_Facing(PrimaryFacing.Current())), Center_Coord());
@@ -1929,6 +1930,7 @@ BuildingClass::BuildingClass(StructType type, HousesType house)
  *=============================================================================================*/
 BuildingClass::~BuildingClass(void)
 {
+    Campaign_SAM_Volley_Forget(this);
     if (GameActive && Class) {
         if (House) {
 #ifndef USE_RA_AI
