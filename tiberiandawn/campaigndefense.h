@@ -14,8 +14,12 @@ inline int Campaign_SAM_Attack_Delay(TechnoClass const* object, int ticks)
 }
 inline bool Campaign_SAM_Target_Allowed(BuildingClass const* sam, TARGET target)
 {
-    return Target_Legal(target) && (Campaign_SAM_Ground(sam)
-        || (Is_Target_Aircraft(target) && As_Aircraft(target)->Altitude > 0));
+    if (!Target_Legal(target)) return false;
+    if (Campaign_SAM_Ground(sam)) {
+        auto object=As_Techno(target);
+        return !object || (object->IsActive && !object->IsInLimbo && object->Strength>0);
+    }
+    return Is_Target_Aircraft(target) && As_Aircraft(target)->Altitude > 0;
 }
 inline bool Campaign_Defense_Targets_Buildings(TechnoClass const* object)
 {

@@ -1565,6 +1565,20 @@ bool TechnoClass::Evaluate_Cell(ThreatType method,
     **	techno object there, then bail.
     */
     CellClass* cellptr = &Map[cell];
+    if (Campaign_SAM_Ground(this)) {
+        // Infantry share cells. An excluded/dead first occupant must not hide
+        // other legal targets behind it in the same occupancy list.
+        for (auto occupant=cellptr->Cell_Occupier();occupant;occupant=occupant->Next) {
+            if (!occupant->IsActive || !occupant->Is_Techno()) continue;
+            auto candidate=static_cast<TechnoClass const*>(occupant);
+            if (candidate->Strength<=0) continue;
+            if (Evaluate_Object(method,mask,range,candidate,value)) {
+                *object=candidate;
+                return true;
+            }
+        }
+        return false;
+    }
     TechnoClass const* tentative = (TechnoClass const*)cellptr->Cell_Occupier();
     while (tentative) {
         if (tentative->Is_Techno() && !House->Is_Ally(tentative))
