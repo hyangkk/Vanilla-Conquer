@@ -37,6 +37,7 @@
 #include "function.h"
 #include "campaigndefense.h"
 #include <vector>
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -343,11 +344,29 @@ void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
     }
     int credit=enemies*5+samFractions[id],extra=credit/10;
     samFractions[id]=credit%10;
+    const int missiles=MIN(extra,int(alternatives.size()));
+    std::vector<TARGET> nearest;
+    for (auto candidate:alternatives) {
+        auto object=As_Techno(candidate);
+        if (object && object->What_Am_I()!=RTTI_BUILDING) nearest.push_back(candidate);
+    }
+    std::stable_sort(nearest.begin(),nearest.end(),[sam](TARGET a,TARGET b) {
+        return Distance(sam->Center_Coord(),As_Techno(a)->Center_Coord())
+            < Distance(sam->Center_Coord(),As_Techno(b)->Center_Coord());
+    });
+    // Odd volleys give the nearest-unit half the spare missile. Remaining
+    // missiles retain the original distribution order without target reuse.
+    std::vector<TARGET> assigned;
+    for (int i=0;i<(missiles+1)/2 && i<int(nearest.size());++i) assigned.push_back(nearest[i]);
+    for (auto candidate:alternatives) {
+        if (int(assigned.size())>=missiles) break;
+        if (std::find(assigned.begin(),assigned.end(),candidate)==assigned.end()) assigned.push_back(candidate);
+    }
     unsigned char arm=sam->Arm;bool second=sam->IsSecondShot;
     // Qualified base calls create real missiles without recursively triggering a
     // new volley. Restore the normal salvo's rearm/shot phase afterwards.
-    for (int i=0;i<extra && i<int(alternatives.size());++i) {
-        if (!sam->TechnoClass::Fire_At(alternatives[i],weapon)) break;
+    for (auto assignedTarget:assigned) {
+        if (!sam->TechnoClass::Fire_At(assignedTarget,weapon)) break;
     }
     sam->Arm=arm;sam->IsSecondShot=second;
 }
