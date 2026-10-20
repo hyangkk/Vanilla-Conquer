@@ -374,9 +374,11 @@ struct SAMChain {
     std::array<TARGET,3> visited{};
 };
 std::map<TARGET,SAMChain> samChains;
-const char chainMagic[8]={'C','N','C','C','H','N','0','1'};
+const char chainMagic[8]={'C','N','C','C','H','N','0','2'};
+const char oldChainMagic[8]={'C','N','C','C','H','N','0','1'};
+std::vector<TARGET> oldChainPower;
 }
-void Campaign_SAM_Chain_Reset() { samChains.clear(); }
+void Campaign_SAM_Chain_Reset() { samChains.clear();oldChainPower.clear(); }
 void Campaign_SAM_Chain_Forget(BulletClass* bullet)
 {
     if (bullet) samChains.erase(Build_Target(KIND_BULLET,Bullets.ID(bullet)));
@@ -393,8 +395,16 @@ void Campaign_SAM_Chain_Fixup()
     // before the anti-air impact modifier can alter the stored projectile power.
     for (int i=0;i<Bullets.Count();++i) {
         auto bullet=Bullets.Ptr(i);
-        if (!samChains.count(bullet->As_Target())) Campaign_SAM_Chain_Start(bullet);
+        auto id=bullet->As_Target();
+        if (!samChains.count(id)) {
+            if (Campaign_SAM_Ground(bullet->Payback))
+                bullet->Strength=MIN((int)Weapons[WEAPON_NIKE].Attack*bullet->Payback->House->FirepowerBias,32767);
+            Campaign_SAM_Chain_Start(bullet);
+        }
+        else if (std::find(oldChainPower.begin(),oldChainPower.end(),id)!=oldChainPower.end())
+            bullet->Strength=samChains[id].rawDamage;
     }
+    oldChainPower.clear();
 }
 bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
 {
@@ -403,11 +413,10 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     SAMChain chain=it->second;
     if (GameToPlay!=GAME_NORMAL || *bullet!=BULLET_SAM) return false;
     // A miss still consumes a hop and continues from the missile's position.
-    // Remember attempted targets too, so a missed target is not selected again.
+    // Prefer targets not yet attempted by this branch; reuse if none remain.
     TARGET attempted=(target && target->IsActive)?target->As_Target():TARGET_NONE;
-    bool repeated=std::find(chain.visited.begin(),chain.visited.begin()+chain.count,attempted)!=chain.visited.begin()+chain.count;
     bool hit=target && target->IsActive && !target->IsInLimbo && target->Strength>0
-        && bullet->Distance(target)<ICON_LEPTON_W/2 && !repeated;
+        && bullet->Distance(target)<ICON_LEPTON_W/2;
     COORDINATE origin=hit?target->Target_Coord():bullet->Coord;
     if (chain.count<chain.visited.size()) chain.visited[chain.count++]=attempted;
     if (hit) {
@@ -417,32 +426,44 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     if (!chain.remaining) return true;
     auto house=HouseClass::As_Pointer(chain.owner);
     if (!house) return true;
-    TechnoClass* next=nullptr;int nearest=10*ICON_LEPTON_W+1;
+    std::vector<TechnoClass*> candidates,previousTargets;
     auto consider=[&](TechnoClass* unit) {
         if (!unit || !unit->IsActive || unit->IsInLimbo || unit->Strength<=0 || !unit->House
             || unit->House==house || unit->House->Class->House==HOUSE_NEUTRAL
             || house->Is_Ally(unit->House) || unit->House->Is_Ally(house)
             || !unit->Techno_Type_Class()->IsLegalTarget || unit->Is_Cloaked(house)
             || (!unit->IsDiscoveredByPlayer && unit->What_Am_I()!=RTTI_AIRCRAFT)
-            || !Map.In_Radar(Coord_Cell(unit->Coord))
-            || std::find(chain.visited.begin(),chain.visited.begin()+chain.count,unit->As_Target())!=chain.visited.begin()+chain.count) return;
+            || !Map.In_Radar(Coord_Cell(unit->Coord))) return;
         int distance=Distance(origin,unit->Target_Coord());
-        if (distance<nearest) {nearest=distance;next=unit;}
+        if (distance<=10*ICON_LEPTON_W) {
+            bool previous=std::find(chain.visited.begin(),chain.visited.begin()+chain.count,unit->As_Target())!=chain.visited.begin()+chain.count;
+            (previous?previousTargets:candidates).push_back(unit);
+        }
     };
     for (int i=0;i<Units.Count();++i) consider(Units.Ptr(i));
     for (int i=0;i<Infantry.Count();++i) consider(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) consider(Aircraft.Ptr(i));
     for (int i=0;i<Buildings.Count();++i) consider(Buildings.Ptr(i));
-    if (!next) return true;
-    auto bounce=new BulletClass(BULLET_SAM);
-    if (!bounce) return true;
-    bounce->Assign_Target(next->As_Target());
-    bounce->Strength=chain.rawDamage;
-    // The new missile starts at the impact, so its ten-cell hop must not be
-    // clamped to the original SAM's firing range during infantry scatter setup.
-    if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;return true;}
-    bounce->Payback=bullet->Payback;
-    --chain.remaining;samChains[bounce->As_Target()]=chain;
+    if (candidates.empty()) candidates.swap(previousTargets);
+    if (candidates.empty()) return true;
+    std::stable_sort(candidates.begin(),candidates.end(),[origin](TechnoClass* a,TechnoClass* b) {
+        return Distance(origin,a->Target_Coord())<Distance(origin,b->Target_Coord());
+    });
+    --chain.remaining;
+    // Each child inherits its own ancestry and remaining generation count.
+    // Prefer different targets; cycle valid candidates when fewer than three exist.
+    for (unsigned i=0;i<3;++i) {
+        auto next=candidates[i%candidates.size()];
+        auto bounce=new BulletClass(BULLET_SAM);
+        if (!bounce) break;
+        bounce->Assign_Target(next->As_Target());
+        bounce->Strength=chain.rawDamage;
+        // Keep Payback unset during Unlimbo: infantry scatter must be measured
+        // from this impact rather than clamped to the original SAM's range.
+        if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;continue;}
+        bounce->Payback=bullet->Payback;
+        samChains[bounce->As_Target()]=chain;
+    }
     return true;
 }
 bool Campaign_SAM_Chain_Save(FileClass& file)
@@ -460,7 +481,8 @@ bool Campaign_SAM_Chain_Load(FileClass& file)
 {
     Campaign_SAM_Chain_Reset();char header[8];int n=file.Read(header,8);
     if (!n) return true;
-    if (n!=8 || std::memcmp(header,chainMagic,8)) return false;
+    bool legacy=n==8 && !std::memcmp(header,oldChainMagic,8);
+    if (n!=8 || (!legacy && std::memcmp(header,chainMagic,8))) return false;
     std::uint32_t count;
     if (file.Read(&count,sizeof(count))!=sizeof(count)||count>BULLET_MAX) return false;
     for (unsigned i=0;i<count;++i) {
@@ -469,6 +491,10 @@ bool Campaign_SAM_Chain_Load(FileClass& file)
             || data[1]>2||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>2||data[1]+data[4]!=2) return false;
         SAMChain chain;chain.remaining=data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
         for (unsigned j=0;j<3;++j) {chain.visited[j]=data[5+j];if (j<chain.count && data[5+j]!=TARGET_NONE && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
+        if (legacy) {
+            chain.rawDamage=MIN(chain.rawDamage*2,32767u);
+            oldChainPower.push_back(data[0]);
+        }
         samChains[data[0]]=chain;
     }
     return true;

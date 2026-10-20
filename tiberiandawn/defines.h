@@ -2008,7 +2008,7 @@ inline TextPrintType operator~(TextPrintType a)
 #define AIRCRAFT_MAX      100 // Lasts for minutes.
 #define ANIM_MAX          200 // Lasts only a few seconds.
 #define BUILDING_MAX      500 // Lasts for hours.
-#define BULLET_MAX        50  // Lasts several seconds.
+#define BULLET_MAX        65536 // Large campaign branching volleys; target IDs have 24 value bits.
 #define FACTORY_MAX       32  // Lasts a few minutes.
 #define HOUSE_MAX         12  // Lasts entire scenario.
 #define INFANTRY_MAX      500 // Lasts for minutes.
