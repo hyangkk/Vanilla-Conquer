@@ -76,6 +76,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 #include "smoothmotion.h"
 
 /*
@@ -1389,7 +1390,7 @@ ResultType ObjectClass::Take_Damage(int& damage, int distance, WarheadType warhe
     int oldstrength = Strength;
 
     if (oldstrength && damage && !Class_Of().IsImmune) {
-        int maxstrength = Class_Of().MaxStrength;
+        int maxstrength = Campaign_Max_Health(this);
 
         /*
         **	Modify damage based on the warhead type and the armor of the object. This results
@@ -1398,6 +1399,8 @@ ResultType ObjectClass::Take_Damage(int& damage, int distance, WarheadType warhe
         damage = Modify_Damage(damage, warhead, Class_Of().Armor, distance);
         if (!damage)
             return (RESULT_NONE);
+        if (damage>0 && What_Am_I()==RTTI_BUILDING && Campaign_SAM_Ground(static_cast<BuildingClass*>(this)))
+            damage=MAX(1,damage/2);
 
         /*
         **	At this point, we KNOW that at least light damage has occurred.
@@ -1715,7 +1718,7 @@ BuildingClass* ObjectClass::Who_Can_Build_Me(bool intheory, bool legal) const
 };
 unsigned ObjectClass::Health_Ratio(void) const
 {
-    return (Cardinal_To_Fixed(Class_Of().MaxStrength, Strength));
+    return (Cardinal_To_Fixed(Campaign_Max_Health(this), Strength));
 };
 int ObjectClass::Full_Name(void) const
 {

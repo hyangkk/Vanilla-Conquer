@@ -303,13 +303,14 @@ void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoCl
 
 namespace {
 std::array<unsigned char, BUILDING_MAX> samFractions{};
-const char samMagic[8]={'C','N','C','S','A','M','0','2'};
+std::array<unsigned char, BUILDING_MAX> samHealthBoost{};
+const char samMagic[8]={'C','N','C','S','A','M','0','3'};
 }
 void Campaign_SAM_Volley_Reset() { samFractions.fill(0); }
 void Campaign_SAM_Volley_Forget(BuildingClass* sam)
 {
     int id=Buildings.ID(sam);
-    if (id>=0 && id<BUILDING_MAX) samFractions[id]=0;
+    if (id>=0 && id<BUILDING_MAX) {samFractions[id]=0;samHealthBoost[id]=0;}
 }
 void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
 {
@@ -317,44 +318,87 @@ void Campaign_SAM_Volley(BuildingClass* sam,TARGET target,int weapon)
     int id=Buildings.ID(sam);
     if (id<0 || id>=BUILDING_MAX) return;
     int enemies=0;
+    std::vector<TARGET> alternatives;
     auto count=[&](FootClass* unit) {
         if (unit && unit->IsActive && !unit->IsInLimbo && unit->Strength>0
             && unit->House && unit->House!=sam->House && unit->House->Class->House!=HOUSE_NEUTRAL
             && !unit->House->Is_Ally(sam->House) && !sam->House->Is_Ally(unit->House)
-            && Map.In_Radar(Coord_Cell(unit->Coord))
-            && Distance(sam->Center_Coord(),unit->Center_Coord())<=sam->Weapon_Range(weapon)/2) ++enemies;
+            && Map.In_Radar(Coord_Cell(unit->Coord))) {
+            if (Distance(sam->Center_Coord(),unit->Center_Coord())<=sam->Weapon_Range(weapon)/2) ++enemies;
+            int value=0;
+            if (unit->As_Target()!=target && sam->Evaluate_Object(THREAT_NORMAL,1<<unit->What_Am_I(),0,unit,value))
+                alternatives.push_back(unit->As_Target());
+        }
     };
     for (int i=0;i<Units.Count();++i) count(Units.Ptr(i));
     for (int i=0;i<Infantry.Count();++i) count(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) count(Aircraft.Ptr(i));
+    for (int i=0;i<Buildings.Count();++i) {
+        auto building=Buildings.Ptr(i);int value=0;
+        if (building!=sam && building->IsActive && !building->IsInLimbo && building->Strength>0
+            && building->House && building->House!=sam->House && building->House->Class->House!=HOUSE_NEUTRAL
+            && !sam->House->Is_Ally(building->House) && !building->House->Is_Ally(sam->House)
+            && building->As_Target()!=target && sam->Evaluate_Object(THREAT_NORMAL,1<<RTTI_BUILDING,0,building,value))
+            alternatives.push_back(building->As_Target());
+    }
     int credit=enemies*5+samFractions[id],extra=credit/10;
     samFractions[id]=credit%10;
     unsigned char arm=sam->Arm;bool second=sam->IsSecondShot;
     // Qualified base calls create real missiles without recursively triggering a
     // new volley. Restore the normal salvo's rearm/shot phase afterwards.
-    for (int i=0;i<extra;++i) {
-        if (!sam->TechnoClass::Fire_At(target,weapon)) break;
+    for (int i=0;i<extra && i<int(alternatives.size());++i) {
+        if (!sam->TechnoClass::Fire_At(alternatives[i],weapon)) break;
     }
     sam->Arm=arm;sam->IsSecondShot=second;
 }
 bool Campaign_SAM_Volley_Save(FileClass& file)
 {
     return file.Write(samMagic,sizeof(samMagic))==sizeof(samMagic)
-        && file.Write(samFractions.data(),samFractions.size())==int(samFractions.size());
+        && file.Write(samFractions.data(),samFractions.size())==int(samFractions.size())
+        && file.Write(samHealthBoost.data(),samHealthBoost.size())==int(samHealthBoost.size());
 }
 bool Campaign_SAM_Volley_Load(FileClass& file)
 {
     Campaign_SAM_Volley_Reset();
+    Campaign_SAM_Health_Reset();
     char header[8];int n=file.Read(header,sizeof(header));
     if (!n) return true; // Existing saves have no fractional-volley extension.
     const char oldMagic[8]={'C','N','C','S','A','M','0','1'};
+    const char v2Magic[8]={'C','N','C','S','A','M','0','2'};
+    bool v2=n==sizeof(header)&&!std::memcmp(header,v2Magic,sizeof(header));
     bool legacy=n==sizeof(header)&&!std::memcmp(header,oldMagic,sizeof(header));
-    if (n!=sizeof(header)||(!legacy&&std::memcmp(header,samMagic,sizeof(header)))) return false;
+    if (n!=sizeof(header)||(!legacy&&!v2&&std::memcmp(header,samMagic,sizeof(header)))) return false;
     decltype(samFractions) data{};
     if (file.Read(data.data(),data.size())!=int(data.size())) return false;
     for (auto& value:data) {
         if (value >= (legacy?5:10)) return false;
         if (legacy) value*=2; // Preserve old fifths exactly as tenths.
     }
-    samFractions=data;return true;
+    decltype(samHealthBoost) health{};
+    if (!legacy && !v2) {
+        if (file.Read(health.data(),health.size())!=int(health.size())) return false;
+        for (auto value:health) if (value>1) return false;
+    }
+    samFractions=data;samHealthBoost=health;return true;
+}
+
+void Campaign_SAM_Health_Reset() { samHealthBoost.fill(0); }
+void Campaign_SAM_Health_Apply(BuildingClass* sam)
+{
+    if (!sam || sam->Class->Type!=STRUCT_SAM) return;
+    int id=Buildings.ID(sam);
+    if (id<0 || id>=BUILDING_MAX) return;
+    bool desired=Campaign_SAM_Ground(sam);
+    if (desired!=bool(samHealthBoost[id])) {
+        // Scale current HP along with the maximum: existing damage is preserved
+        // proportionally and repeated save/load never multiplies HP again.
+        if (desired) sam->Strength=MIN(int(sam->Strength)*5,int(sam->Class->MaxStrength)*5);
+        else if (sam->Strength>0) sam->Strength=MAX(1,(sam->Strength+4)/5);
+        samHealthBoost[id]=desired;
+        sam->LastStrength=sam->Strength;
+    }
+}
+void Campaign_SAM_Health_Apply_All()
+{
+    for (int i=0;i<Buildings.Count();++i) Campaign_SAM_Health_Apply(Buildings.Ptr(i));
 }

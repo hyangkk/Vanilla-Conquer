@@ -900,6 +900,7 @@ void BuildingClass::AI(void)
     **	This process must occur before mission AI since the mission AI relies on
     **	the bstate change to occur immediately before the MissionClass::AI.
     */
+    Campaign_SAM_Health_Apply(this);
     bool stagechange = Graphic_Logic();
     // The existing SAM door clock already runs at its one-tick minimum.
     // Advance it twice while preserving its exact rising/lowering endpoints.
@@ -1107,6 +1108,9 @@ void BuildingClass::AI(void)
     /*
     **	Handle any repair process that may be going on.
     */
+    if (Campaign_SAM_Ground(this) && Strength>0 && Strength<Campaign_Max_Health(this)
+        && Mission!=MISSION_CONSTRUCTION && Mission!=MISSION_DECONSTRUCTION && !IsGoingToBlow)
+        IsRepairing=true;
     if (IsRepairing) {
         if ((Frame % 15) == 0) {
             IsWrenchVisible = (IsWrenchVisible == false);
@@ -1121,8 +1125,8 @@ void BuildingClass::AI(void)
                 House->Spend_Money(cost);
                 Strength += step;
 
-                if (Strength >= Class->MaxStrength) {
-                    Strength = Class->MaxStrength;
+                if (Strength >= Campaign_Max_Health(this)) {
+                    Strength = Campaign_Max_Health(this);
                     IsRepairing = false;
                 }
             } else {
@@ -1885,6 +1889,7 @@ BuildingClass::BuildingClass(StructType type, HousesType house)
     IsWrenchVisible = false;
     QueueBState = BSTATE_NONE;
     Strength = Class->MaxStrength;
+    Campaign_SAM_Health_Apply(this);
     WhoLastHurtMe = house;
     Ammo = Class->MaxAmmo;
 
@@ -3026,7 +3031,7 @@ void BuildingClass::Repair(int control)
     */
     VocType sound = VOC_NONE;
     if (IsRepairing) {
-        if (Strength == Class->MaxStrength) {
+        if (Strength == Campaign_Max_Health(this)) {
             sound = VOC_SCOLD;
         } else {
             sound = VOC_BUTTON;
@@ -3333,7 +3338,7 @@ void BuildingClass::Read_INI(CCINIClass& ini)
                 if (b) {
                     if (b->Unlimbo(Cell_Coord(cell), facing)) {
                         strength = MIN(strength, 0x100);
-                        strength = Fixed_To_Cardinal(b->Class->MaxStrength, strength);
+                        strength = Fixed_To_Cardinal(Campaign_Max_Health(b), strength);
                         b->Strength = strength;
                         b->IsALemon = false;
                         b->Trigger = TriggerClass::As_Pointer(trigname);
@@ -3727,6 +3732,7 @@ bool BuildingClass::Captured(HouseClass* newowner)
 
         IsCaptured = true;
         TechnoClass::Captured(newowner);
+        Campaign_SAM_Health_Apply(this);
 
 #ifdef USE_RA_AI
         //
@@ -5220,7 +5226,7 @@ int BuildingClass::Power_Output(void) const
 {
     Validate();
     if (Class->Power) {
-        return (Fixed_To_Cardinal(Class->Power, Cardinal_To_Fixed(Class->MaxStrength, LastStrength)));
+        return (Fixed_To_Cardinal(Class->Power, Cardinal_To_Fixed(Campaign_Max_Health(this), LastStrength)));
     }
     return (0);
 }

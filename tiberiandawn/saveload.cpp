@@ -49,6 +49,7 @@
 #include "campaignperks.h"
 #include "campaigncredits.h"
 #include "campaigntech.h"
+#include "campaigndefense.h"
 
 extern bool DLLSave(FileClass& file);
 extern bool DLLLoad(FileClass& file);
@@ -493,6 +494,7 @@ bool Load_Game(const char* file_name)
     Decode_All_Pointers();
     // Jurassic mode is selected by the loaded campaign; it is not serialized in Special.
     Special.IsJurassic = (ScenPlayer == SCEN_PLAYER_JP);
+    Campaign_SAM_Health_Apply_All();
     Map.Init_IO();
     Map.Flag_To_Redraw(true);
 

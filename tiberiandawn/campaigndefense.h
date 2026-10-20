@@ -35,4 +35,13 @@ void Campaign_SAM_Volley_Reset();
 void Campaign_SAM_Volley_Forget(BuildingClass* sam);
 bool Campaign_SAM_Volley_Save(FileClass& file);
 bool Campaign_SAM_Volley_Load(FileClass& file);
+inline int Campaign_Max_Health(ObjectClass const* object)
+{
+    int maximum=object->Class_Of().MaxStrength;
+    if (object->What_Am_I()==RTTI_BUILDING && Campaign_SAM_Ground(static_cast<BuildingClass const*>(object))) maximum*=5;
+    return maximum;
+}
+void Campaign_SAM_Health_Reset();
+void Campaign_SAM_Health_Apply(BuildingClass* sam);
+void Campaign_SAM_Health_Apply_All();
 #endif

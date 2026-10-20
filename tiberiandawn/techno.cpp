@@ -848,7 +848,7 @@ RadioMessageType TechnoClass::Receive_Message(RadioClass* from, RadioMessageType
             if (House->Available_Money() >= cost) {
 #ifdef OBSOLETE
                 if (Health_Ratio() >= 0x0100) {
-                    Strength = Class_Of().MaxStrength;
+                    Strength = Campaign_Max_Health(this);
                     from->Scatter(true);
                     return (RADIO_NEGATIVE);
                 }
@@ -1019,7 +1019,7 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window)
     const bool show_health_bar = (Strength > 0) && !Is_Cloaked(PlayerPtr)
                                  && (Is_Selected_By_Player()
                                      || ((Special.HealthBarDisplayMode == SpecialClass::HB_DAMAGED)
-                                         && (Strength < Techno_Type_Class()->MaxStrength))
+                                         && (Strength < Campaign_Max_Health(this)))
                                      || (Special.HealthBarDisplayMode == SpecialClass::HB_ALWAYS));
 
     /*
@@ -2858,7 +2858,7 @@ bool TechnoClass::Can_Repair(void) const
     if (What_Am_I() == RTTI_UNIT || What_Am_I() == RTTI_INFANTRY || What_Am_I() == RTTI_AIRCRAFT) {
         return (false);
     }
-    return (Techno_Type_Class()->IsRepairable && Strength != Class_Of().MaxStrength);
+    return (Techno_Type_Class()->IsRepairable && Strength != Campaign_Max_Health(this));
 }
 
 /***********************************************************************************************

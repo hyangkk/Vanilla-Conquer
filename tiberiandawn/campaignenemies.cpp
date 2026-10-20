@@ -1,5 +1,6 @@
 // Runtime bookkeeping stays outside serialized game object layouts.
 #include "function.h"
+#include "campaigndefense.h"
 #include "campaignenemies.h"
 #include "campaignwaves.h"
 #include <cstdint>
@@ -91,7 +92,7 @@ bool Duplicate(FootClass* original)
     return true;
 }
 }
-void Campaign_Enemies_Reset() { processed.clear(); companions.clear(); Campaign_Waves_Reset(); }
+void Campaign_Enemies_Reset() { processed.clear(); companions.clear(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); }
 void Campaign_Enemies_Mark_Extra(const TechnoClass* object) { processed.insert(object->As_Target()); }
 void Campaign_Enemies_Forget(const TechnoClass* object) {
     TARGET id=object->As_Target(); processed.erase(id); companions.erase(id);

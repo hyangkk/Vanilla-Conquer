@@ -238,6 +238,7 @@ bool Campaign_Waves_Save(FileClass& file)
 bool Campaign_Waves_Load(FileClass& file)
 {
     Campaign_SAM_Volley_Reset();
+    Campaign_SAM_Health_Reset();
     char header[sizeof(magic)];int bytes=file.Read(header,sizeof(header));
     if (!bytes) return true; // The previous enemy multiplier footer ends here.
     if (bytes!=sizeof(header)||std::memcmp(header,magic,sizeof(magic))) return false;

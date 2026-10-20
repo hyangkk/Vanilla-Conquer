@@ -1,0 +1,11 @@
+# SAM durability, repair and distinct-target missiles
+
+Use the private native diagnostic substitution workflow and restore missionstarts.cpp before rebuilding/installing the normal binary. Never change live saves.
+
+Local player SAM maximum health is five times the shared base type, without modifying shared type data or native object layout. Current health scales proportionally on old-save migration and ownership changes. Optional CNCSAM03 extends the existing fractional-volley footer with one per-slot boost marker; legacy01/02 or footer-free saves have no marker and are migrated once after pointer decoding. New boosted saves retain exact health on repeated loads. Destructor/recycled slots and full scenario reset clear the marker. Health bars, half-health damage transitions, repair cap, repair eligibility, and scenario percentage initialization use the effective maximum.
+
+After the existing underground-SAM and AP/armor modifiers, positive incoming damage is halved, minimum one damage point. Enemy SAMs retain base HP/defense. Tests compare raised and buried defenses under identical attacks, then save/reload half-damaged buildings twice and simulate a pre-upgrade save with the new optional footer removed. Switching ownership scales maximum/current health together.
+
+A damaged local SAM automatically activates the ordinary paid repair loop outside construction/deconstruction and pending destruction. It pays the existing cost per repair step, caps at the boosted maximum, stops at full HP, waits when money is insufficient, and retries when funds return. No free healing is added.
+
+Additional missiles use the existing half-range50% count, but acquire visible/legal enemies across the actual full weapon range. The primary target is excluded and every extra missile uses a separate target. Troop counts exclude buildings; a building may still be a legal secondary target under the existing building-target perk. If too few distinct targets exist, the volley is capped rather than repeating a target. Enemy attacks remain unchanged. Tests fire real salvos against1/2/5/10/20 enemies and require1/2/3/6/11 different fuse target coordinates with original50 raw damage. Native arrival/fuse target coordinates verify independent real missile goals without changing the missile class layout.
