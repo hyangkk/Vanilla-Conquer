@@ -152,6 +152,7 @@ void* BulletClass::operator new(size_t) noexcept
 void BulletClass::operator delete(void* ptr)
 {
     if (ptr) {
+        Campaign_SAM_Chain_Forget((BulletClass*)ptr);
         ((BulletClass*)ptr)->IsActive = false;
     }
     Bullets.Free((BulletClass*)ptr);
@@ -426,9 +427,8 @@ void BulletClass::AI(void)
             /*
             **	Non-aircraft targets apply damage to the ground.
             */
-            if (*this == BULLET_SAM && Campaign_SAM_Ground(Payback)) {
-                bool airborne = Is_Target_Aircraft(TarCom) && As_Aircraft(TarCom)->In_Which_Layer() != LAYER_GROUND;
-                Campaign_SAM_Explosion_Damage(Coord, Strength, Payback, Class->Warhead, airborne);
+            if (Campaign_SAM_Chain_Impact(this,As_Techno(TarCom))) {
+                // The direct hit and up to two travelling ricochets replace splash.
             } else if (!Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->In_Which_Layer() == LAYER_GROUND) {
                 Explosion_Damage(Coord, Strength, Payback, Class->Warhead);
             } else {

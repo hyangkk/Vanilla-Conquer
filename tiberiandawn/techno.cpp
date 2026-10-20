@@ -2383,6 +2383,7 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
             // object->IsActive, object->IsInLimbo);Get_Key();
             bullet->Payback = this;
             bullet->Strength = (short)firepower;
+            Campaign_SAM_Chain_Start(bullet);
         } else {
             delete bullet;
         }

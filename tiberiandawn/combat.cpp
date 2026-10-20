@@ -41,6 +41,7 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <map>
 
 int Modify_Damage(int damage, WarheadType warhead, ArmorType armor);
 void Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, WarheadType warhead);
@@ -242,65 +243,6 @@ void Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source, 
     }
 }
 
-// The SAM perk is selected by the actual missile impact, never by shared warhead
-// data. Ground bursts remain ground-only; airborne bursts affect flying aircraft.
-void Campaign_SAM_Explosion_Damage(COORDINATE coord, unsigned strength, TechnoClass* source,
-                                   WarheadType warhead, bool airborne)
-{
-    if (!strength || Special.IsInert || warhead == WARHEAD_NONE || !Campaign_SAM_Ground(source)) return;
-    const int radius = 5 * (ICON_LEPTON_W + (ICON_LEPTON_W >> 1));
-    CELL center = Coord_Cell(coord);
-    if ((unsigned)center >= MAP_CELL_TOTAL) return;
-    ObjectClass* impact = Map[center].Cell_Occupier();
-    std::vector<TARGET> targets;
-    auto collect = [&](ObjectClass* object) {
-        if (object && object != source && !object->IsInLimbo && object->IsDown && !object->IsToDamage) {
-            object->IsToDamage = true;
-            targets.push_back(object->As_Target());
-        }
-    };
-    if (airborne) {
-        for (int i=0;i<Aircraft.Count();++i) {
-            auto air=Aircraft.Ptr(i);
-            if (air->Altitude>0) collect(air);
-        }
-    } else {
-        const int cells=(radius+ICON_LEPTON_W-1)/ICON_LEPTON_W;
-        for (int dy=-cells;dy<=cells;++dy) for (int dx=-cells;dx<=cells;++dx) {
-            int x=Cell_X(center)+dx,y=Cell_Y(center)+dy;
-            if (x<0||x>=MAP_CELL_W||y<0||y>=MAP_CELL_H) continue;
-            for (auto object=Map[XY_Cell(x,y)].Cell_Occupier();object;object=object->Next) collect(object);
-        }
-    }
-    for (auto target:targets) {
-        auto object=As_Object(target);
-        // A chain explosion may already have removed a collected target. New
-        // objects reusing its heap slot do not carry the pending-damage marker.
-        if (!object || !object->IsToDamage) continue;
-        object->IsToDamage=false;
-        int distance=object==impact && object->What_Am_I()==RTTI_BUILDING ? 0 : Distance(coord,object->Center_Coord());
-        if (!object->IsInLimbo && object->IsDown && distance<radius) {
-            int damage=strength;
-            object->Take_Damage(damage,distance/5,warhead,source);
-        }
-    }
-    if (!airborne) {
-        const int cells=(radius+ICON_LEPTON_W-1)/ICON_LEPTON_W;
-        auto whead=&Warheads[warhead];
-        for (int dy=-cells;dy<=cells;++dy) for (int dx=-cells;dx<=cells;++dx) {
-            int x=Cell_X(center)+dx,y=Cell_Y(center)+dy;
-            if (x<0||x>=MAP_CELL_W||y<0||y>=MAP_CELL_H) continue;
-            CELL cell=XY_Cell(x,y);int distance=Distance(coord,Cell_Coord(cell));
-            if (distance>=radius) continue;
-            unsigned damage=strength>>Bound((distance/5)>>whead->SpreadFactor,0,16);
-            Map[cell].Reduce_Tiberium(damage/10);
-            if (Map[cell].Overlay!=OVERLAY_NONE) {
-                auto overlay=&OverlayTypeClass::As_Reference(Map[cell].Overlay);
-                if (overlay->IsWall && (whead->IsWallDestroyer || (whead->IsWoodDestroyer&&overlay->IsWooden))) Map[cell].Reduce_Wall(damage);
-            }
-        }
-    }
-}
 
 namespace {
 std::array<unsigned char, BUILDING_MAX> samFractions{};
@@ -374,12 +316,14 @@ bool Campaign_SAM_Volley_Save(FileClass& file)
 {
     return file.Write(samMagic,sizeof(samMagic))==sizeof(samMagic)
         && file.Write(samFractions.data(),samFractions.size())==int(samFractions.size())
-        && file.Write(samHealthBoost.data(),samHealthBoost.size())==int(samHealthBoost.size());
+        && file.Write(samHealthBoost.data(),samHealthBoost.size())==int(samHealthBoost.size())
+        && Campaign_SAM_Chain_Save(file);
 }
 bool Campaign_SAM_Volley_Load(FileClass& file)
 {
     Campaign_SAM_Volley_Reset();
     Campaign_SAM_Health_Reset();
+    Campaign_SAM_Chain_Reset();
     char header[8];int n=file.Read(header,sizeof(header));
     if (!n) return true; // Existing saves have no fractional-volley extension.
     const char oldMagic[8]={'C','N','C','S','A','M','0','1'};
@@ -398,7 +342,7 @@ bool Campaign_SAM_Volley_Load(FileClass& file)
         if (file.Read(health.data(),health.size())!=int(health.size())) return false;
         for (auto value:health) if (value>1) return false;
     }
-    samFractions=data;samHealthBoost=health;return true;
+    samFractions=data;samHealthBoost=health;return Campaign_SAM_Chain_Load(file);
 }
 
 void Campaign_SAM_Health_Reset() { samHealthBoost.fill(0); }
@@ -420,4 +364,107 @@ void Campaign_SAM_Health_Apply(BuildingClass* sam)
 void Campaign_SAM_Health_Apply_All()
 {
     for (int i=0;i<Buildings.Count();++i) Campaign_SAM_Health_Apply(Buildings.Ptr(i));
+}
+
+namespace {
+struct SAMChain {
+    unsigned remaining=2,rawDamage=0,count=0;
+    HousesType owner=HOUSE_NONE;
+    std::array<TARGET,3> visited{};
+};
+std::map<TARGET,SAMChain> samChains;
+const char chainMagic[8]={'C','N','C','C','H','N','0','1'};
+}
+void Campaign_SAM_Chain_Reset() { samChains.clear(); }
+void Campaign_SAM_Chain_Forget(BulletClass* bullet)
+{
+    if (bullet) samChains.erase(Build_Target(KIND_BULLET,Bullets.ID(bullet)));
+}
+void Campaign_SAM_Chain_Start(BulletClass* bullet)
+{
+    if (!bullet || *bullet!=BULLET_SAM || !Campaign_SAM_Ground(bullet->Payback)) return;
+    SAMChain chain;chain.rawDamage=bullet->Strength;chain.owner=bullet->Payback->House->Class->House;
+    samChains[bullet->As_Target()]=chain;
+}
+void Campaign_SAM_Chain_Fixup()
+{
+    // Old saves have no chain footer; initialize their existing missiles once,
+    // before the anti-air impact modifier can alter the stored projectile power.
+    for (int i=0;i<Bullets.Count();++i) {
+        auto bullet=Bullets.Ptr(i);
+        if (!samChains.count(bullet->As_Target())) Campaign_SAM_Chain_Start(bullet);
+    }
+}
+bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
+{
+    auto it=samChains.find(bullet->As_Target());
+    if (it==samChains.end()) return false;
+    SAMChain chain=it->second;
+    if (GameToPlay!=GAME_NORMAL || *bullet!=BULLET_SAM) return false;
+    // A near miss is no longer converted into area damage or another bounce.
+    if (!target || !target->IsActive || target->IsInLimbo || target->Strength<=0
+        || bullet->Distance(target)>=ICON_LEPTON_W/2) return true;
+    TARGET hit=target->As_Target();
+    if (std::find(chain.visited.begin(),chain.visited.begin()+chain.count,hit)!=chain.visited.begin()+chain.count) return true;
+    COORDINATE origin=target->Target_Coord();
+    if (chain.count<chain.visited.size()) chain.visited[chain.count++]=hit;
+    int damage=bullet->Strength;
+    target->Take_Damage(damage,0,bullet->Class->Warhead,bullet->Payback);
+    if (!chain.remaining) return true;
+    auto house=HouseClass::As_Pointer(chain.owner);
+    if (!house) return true;
+    FootClass* next=nullptr;int nearest=5*ICON_LEPTON_W+1;
+    auto consider=[&](FootClass* unit) {
+        if (!unit || !unit->IsActive || unit->IsInLimbo || unit->Strength<=0 || !unit->House
+            || unit->House==house || unit->House->Class->House==HOUSE_NEUTRAL
+            || house->Is_Ally(unit->House) || unit->House->Is_Ally(house)
+            || !unit->Techno_Type_Class()->IsLegalTarget || unit->Is_Cloaked(house)
+            || (!unit->IsDiscoveredByPlayer && unit->What_Am_I()!=RTTI_AIRCRAFT)
+            || !Map.In_Radar(Coord_Cell(unit->Coord))
+            || std::find(chain.visited.begin(),chain.visited.begin()+chain.count,unit->As_Target())!=chain.visited.begin()+chain.count) return;
+        int distance=Distance(origin,unit->Target_Coord());
+        if (distance<nearest) {nearest=distance;next=unit;}
+    };
+    for (int i=0;i<Units.Count();++i) consider(Units.Ptr(i));
+    for (int i=0;i<Infantry.Count();++i) consider(Infantry.Ptr(i));
+    for (int i=0;i<Aircraft.Count();++i) consider(Aircraft.Ptr(i));
+    if (!next) return true;
+    auto bounce=new BulletClass(BULLET_SAM);
+    if (!bounce) return true;
+    bounce->Assign_Target(next->As_Target());
+    bounce->Strength=chain.rawDamage;
+    // The new missile starts at the impact, so its five-cell hop must not be
+    // clamped to the original SAM's firing range during infantry scatter setup.
+    if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;return true;}
+    bounce->Payback=bullet->Payback;
+    --chain.remaining;samChains[bounce->As_Target()]=chain;
+    return true;
+}
+bool Campaign_SAM_Chain_Save(FileClass& file)
+{
+    std::uint32_t count=samChains.size();
+    if (file.Write(chainMagic,8)!=8 || file.Write(&count,sizeof(count))!=sizeof(count)) return false;
+    for (auto const& entry:samChains) {
+        auto const& c=entry.second;
+        std::uint32_t data[8]={std::uint32_t(entry.first),c.remaining,c.rawDamage,std::uint32_t(c.owner),c.count,std::uint32_t(c.visited[0]),std::uint32_t(c.visited[1]),std::uint32_t(c.visited[2])};
+        if (file.Write(data,sizeof(data))!=sizeof(data)) return false;
+    }
+    return true;
+}
+bool Campaign_SAM_Chain_Load(FileClass& file)
+{
+    Campaign_SAM_Chain_Reset();char header[8];int n=file.Read(header,8);
+    if (!n) return true;
+    if (n!=8 || std::memcmp(header,chainMagic,8)) return false;
+    std::uint32_t count;
+    if (file.Read(&count,sizeof(count))!=sizeof(count)||count>BULLET_MAX) return false;
+    for (unsigned i=0;i<count;++i) {
+        std::uint32_t data[8];if (file.Read(data,sizeof(data))!=sizeof(data)) return false;
+        if (Target_Kind(data[0])!=KIND_BULLET||Target_Value(data[0])>=BULLET_MAX||samChains.count(data[0])
+            || data[1]>2||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>2||data[1]+data[4]!=2) return false;
+        SAMChain chain;chain.remaining=data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
+        for (unsigned j=0;j<3;++j) {chain.visited[j]=data[5+j];if (j<chain.count && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
+        samChains[data[0]]=chain;
+    }
+    return true;
 }
