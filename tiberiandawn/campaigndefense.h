@@ -10,7 +10,7 @@ inline bool Campaign_SAM_Ground(TechnoClass const* object)
 // Integer simulation ticks round down, with at least one tick per state.
 inline int Campaign_SAM_Attack_Delay(TechnoClass const* object, int ticks)
 {
-    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 4) : ticks;
+    return Campaign_SAM_Ground(object) ? MAX(1, ticks / 2) : ticks;
 }
 inline bool Campaign_SAM_Target_Allowed(BuildingClass const* sam, TARGET target)
 {

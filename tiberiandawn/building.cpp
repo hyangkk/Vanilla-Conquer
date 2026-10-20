@@ -902,13 +902,6 @@ void BuildingClass::AI(void)
     */
     Campaign_SAM_Health_Apply(this);
     bool stagechange = Graphic_Logic();
-    // The existing SAM door clock already runs at its one-tick minimum.
-    // Advance it twice while preserving its exact rising/lowering endpoints.
-    if (Campaign_SAM_Ground(this) && Mission == MISSION_ATTACK
-        && ((Status == SAM_RISING && Fetch_Stage() < 15)
-            || (Status == SAM_LOWERING && Fetch_Stage() < 63))) {
-        stagechange = Graphic_Logic() || stagechange;
-    }
     bool toloop = false;
 
     /*
@@ -1293,7 +1286,7 @@ void BuildingClass::AI(void)
         */
         if (PrimaryFacing.Is_Rotating()) {
             if (*this == STRUCT_SAM) {
-                if (PrimaryFacing.Rotation_Adjust(Campaign_SAM_Ground(this) ? 60 : 15)) {
+                if (PrimaryFacing.Rotation_Adjust(Campaign_SAM_Ground(this) ? 30 : 15)) {
                     Mark(MARK_CHANGE);
                 }
             } else {
@@ -4421,10 +4414,10 @@ int BuildingClass::Mission_Attack(void)
                         if (error == FIRE_OK) {
                             Fire_At(TarCom, 0);
                             Status = SAM_LOCKING;
-                            // Compensate for three fixed one-tick state transitions that cannot
-                            // themselves be halved by the integer mission scheduler.
+                            // Offset the fixed state-transition tick so the sustained cycle
+                            // is exactly twice the previous fast SAM profile.
                             return Campaign_SAM_Ground(this)
-                                ? MAX(1, Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3) - 3)
+                                ? MAX(1, Campaign_SAM_Attack_Delay(this, TICKS_PER_SECOND * 3) - 1)
                                 : TICKS_PER_SECOND * 3;
                         }
                     }
