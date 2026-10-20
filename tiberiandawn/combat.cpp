@@ -370,6 +370,7 @@ namespace {
 struct SAMChain {
     unsigned remaining=2,rawDamage=0,count=0;
     HousesType owner=HOUSE_NONE;
+    // Count every attempt; TARGET_NONE records a detonation after target loss.
     std::array<TARGET,3> visited{};
 };
 std::map<TARGET,SAMChain> samChains;
@@ -401,15 +402,18 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     if (it==samChains.end()) return false;
     SAMChain chain=it->second;
     if (GameToPlay!=GAME_NORMAL || *bullet!=BULLET_SAM) return false;
-    // A near miss is no longer converted into area damage or another bounce.
-    if (!target || !target->IsActive || target->IsInLimbo || target->Strength<=0
-        || bullet->Distance(target)>=ICON_LEPTON_W/2) return true;
-    TARGET hit=target->As_Target();
-    if (std::find(chain.visited.begin(),chain.visited.begin()+chain.count,hit)!=chain.visited.begin()+chain.count) return true;
-    COORDINATE origin=target->Target_Coord();
-    if (chain.count<chain.visited.size()) chain.visited[chain.count++]=hit;
-    int damage=bullet->Strength;
-    target->Take_Damage(damage,0,bullet->Class->Warhead,bullet->Payback);
+    // A miss still consumes a hop and continues from the missile's position.
+    // Remember attempted targets too, so a missed target is not selected again.
+    TARGET attempted=(target && target->IsActive)?target->As_Target():TARGET_NONE;
+    bool repeated=std::find(chain.visited.begin(),chain.visited.begin()+chain.count,attempted)!=chain.visited.begin()+chain.count;
+    bool hit=target && target->IsActive && !target->IsInLimbo && target->Strength>0
+        && bullet->Distance(target)<ICON_LEPTON_W/2 && !repeated;
+    COORDINATE origin=hit?target->Target_Coord():bullet->Coord;
+    if (chain.count<chain.visited.size()) chain.visited[chain.count++]=attempted;
+    if (hit) {
+        int damage=bullet->Strength;
+        target->Take_Damage(damage,0,bullet->Class->Warhead,bullet->Payback);
+    }
     if (!chain.remaining) return true;
     auto house=HouseClass::As_Pointer(chain.owner);
     if (!house) return true;
@@ -464,7 +468,7 @@ bool Campaign_SAM_Chain_Load(FileClass& file)
         if (Target_Kind(data[0])!=KIND_BULLET||Target_Value(data[0])>=BULLET_MAX||samChains.count(data[0])
             || data[1]>2||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>2||data[1]+data[4]!=2) return false;
         SAMChain chain;chain.remaining=data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
-        for (unsigned j=0;j<3;++j) {chain.visited[j]=data[5+j];if (j<chain.count && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
+        for (unsigned j=0;j<3;++j) {chain.visited[j]=data[5+j];if (j<chain.count && data[5+j]!=TARGET_NONE && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
         samChains[data[0]]=chain;
     }
     return true;
