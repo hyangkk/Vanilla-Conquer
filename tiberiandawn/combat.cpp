@@ -413,8 +413,8 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     if (!chain.remaining) return true;
     auto house=HouseClass::As_Pointer(chain.owner);
     if (!house) return true;
-    FootClass* next=nullptr;int nearest=5*ICON_LEPTON_W+1;
-    auto consider=[&](FootClass* unit) {
+    TechnoClass* next=nullptr;int nearest=10*ICON_LEPTON_W+1;
+    auto consider=[&](TechnoClass* unit) {
         if (!unit || !unit->IsActive || unit->IsInLimbo || unit->Strength<=0 || !unit->House
             || unit->House==house || unit->House->Class->House==HOUSE_NEUTRAL
             || house->Is_Ally(unit->House) || unit->House->Is_Ally(house)
@@ -428,12 +428,13 @@ bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target)
     for (int i=0;i<Units.Count();++i) consider(Units.Ptr(i));
     for (int i=0;i<Infantry.Count();++i) consider(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) consider(Aircraft.Ptr(i));
+    for (int i=0;i<Buildings.Count();++i) consider(Buildings.Ptr(i));
     if (!next) return true;
     auto bounce=new BulletClass(BULLET_SAM);
     if (!bounce) return true;
     bounce->Assign_Target(next->As_Target());
     bounce->Strength=chain.rawDamage;
-    // The new missile starts at the impact, so its five-cell hop must not be
+    // The new missile starts at the impact, so its ten-cell hop must not be
     // clamped to the original SAM's firing range during infantry scatter setup.
     if (!bounce->Unlimbo(origin,::Direction(origin,next->Target_Coord()))) {delete bounce;return true;}
     bounce->Payback=bullet->Payback;
