@@ -96,6 +96,7 @@
 #include "function.h"
 #include "campaigndefense.h"
 #include "campaignbike.h"
+#include "siegetank.h"
 #include "campaignformation.h"
 #include "campaignenemies.h"
 #include "ccini.h"
@@ -329,7 +330,7 @@ void UnitClass::AI(void)
     }
 
     TarComClass::AI();
-    if(IsActive && !IsInLimbo && Strength>0) Campaign_Bike_AI(this);
+    if(IsActive && !IsInLimbo && Strength>0) { Campaign_Bike_AI(this); SiegeTank::AI(this); }
 
     /*
     **	Delete this unit if it finds itself off the edge of the map and it is in
@@ -484,6 +485,8 @@ FireErrorType UnitClass::Can_Fire(TARGET target, int which) const
     Validate();
     FireErrorType cf;
 
+    if (SiegeTank::Is(this) && (SiegeTank::Transitioning(this)
+        || (*this == UNIT_SIEGE_MODE && Distance(target) < 2 * ICON_LEPTON_W))) return FIRE_CANT;
     cf = TarComClass::Can_Fire(target, which);
     if (cf == FIRE_OK) {
 
@@ -1121,6 +1124,7 @@ void UnitClass::operator delete(void* ptr)
  *=============================================================================================*/
 UnitClass::~UnitClass(void)
 {
+    SiegeTank::Forget(this);
     if (GameActive && Class) {
 
 #ifdef USE_RA_AI
@@ -1165,6 +1169,7 @@ UnitClass::UnitClass(UnitType classid, HousesType house)
     : TarComClass(classid, house)
 {
     Campaign_Enemies_Forget(this);
+    SiegeTank::Forget(this);
     Campaign_Bike_Health_Apply(this);
     Flagged = HOUSE_NONE;
     Reload = 0;
@@ -1178,7 +1183,7 @@ UnitClass::UnitClass(UnitType classid, HousesType house)
     ** Keep count of the number of units created.
     */
     if (GameToPlay == GAME_INTERNET) {
-        House->UnitTotals.Increment_Unit_Total((int)classid);
+        if (classid <= UNIT_STEG) House->UnitTotals.Increment_Unit_Total((int)classid);
     }
 
 #ifdef USE_RA_AI
@@ -2515,6 +2520,7 @@ bool UnitClass::Harvesting(void)
 int UnitClass::Mission_Unload(void)
 {
     Validate();
+    if (SiegeTank::Is(this)) { if (SiegeTank::Toggle(this)) Assign_Mission(MISSION_GUARD); return 1; }
     enum
     {
         INITIAL_CHECK,
@@ -3690,6 +3696,7 @@ ActionType UnitClass::What_Action(ObjectClass* object) const
     **	Don't allow special deploy action unless there is something to deploy.
     */
     if (action == ACTION_SELF) {
+        if (SiegeTank::Is(this)) return ACTION_SELF;
         if (*this != UNIT_MCV) {
             if (!Class->IsTransporter || !How_Many()) {
                 action = ACTION_NONE;
@@ -4399,4 +4406,10 @@ RTTIType UnitClass::What_Am_I(void) const
 {
     Validate();
     return (RTTI_UNIT);
+}
+
+void UnitClass::Assign_Destination(TARGET target)
+{
+    if (SiegeTank::Is(this) && (*this == UNIT_SIEGE_MODE || SiegeTank::Transitioning(this))) target = TARGET_NONE;
+    TarComClass::Assign_Destination(target);
 }

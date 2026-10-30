@@ -112,6 +112,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "siegetank.h"
 #include "campaignbike.h"
 #include "campaigndefense.h"
 #include "campaignrepair.h"
@@ -285,6 +286,8 @@ unsigned short TechnoTypeClass::Get_Ownable(void) const
  *=============================================================================================*/
 int TechnoTypeClass::Time_To_Build(HousesType house) const
 {
+    // Native factory stages are 108 ticks of seven frames: about 50 game seconds.
+    if (What_Am_I() == RTTI_UNITTYPE && static_cast<UnitTypeClass const*>(this)->Type == UNIT_SIEGE_TANK) return 108 * 7;
     /*
     **	Base time is the raw cost.
     */
@@ -2296,6 +2299,7 @@ void TechnoClass::Assign_Target(TARGET target)
  *=============================================================================================*/
 int TechnoClass::Rearm_Delay(bool second) const
 {
+    if (SiegeTank::Is(this)) return *static_cast<UnitClass const*>(this) == UNIT_SIEGE_MODE ? 47 : 23;
     if(Campaign_Bike_Active(this)) return MAX(1,(((int)Weapons[WEAPON_DRAGON].ROF * House->ROFBias)+3)/2);
     if (second) {
         return Campaign_Defense_Rearm_Delay(this, ((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
@@ -2807,6 +2811,7 @@ ActionType TechnoClass::What_Action(CELL cell) const
  *=============================================================================================*/
 bool TechnoClass::Can_Player_Move(void) const
 {
+    if (SiegeTank::Is(this) && (*static_cast<UnitClass const*>(this) == UNIT_SIEGE_MODE || SiegeTank::Transitioning(static_cast<UnitClass const*>(this)))) return false;
     return (PlayerPtr == House);
 }
 
@@ -3271,7 +3276,7 @@ void TechnoClass::Record_The_Kill(TechnoClass* source)
         House->UnitsLost++;
         if (source) {
             if (GameToPlay == GAME_INTERNET) {
-                source->House->DestroyedUnits.Increment_Unit_Total(((UnitClass*)this)->Class->Type);
+                if (((UnitClass*)this)->Class->Type <= UNIT_STEG) source->House->DestroyedUnits.Increment_Unit_Total(((UnitClass*)this)->Class->Type);
             }
             source->House->UnitsKilled[Owner()]++;
         }

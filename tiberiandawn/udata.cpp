@@ -1214,6 +1214,110 @@ static UnitTypeClass const UnitSteg(UNIT_STEG,
                                     MISSION_GUARD // ORDERS:		Default order to give new unit.
 );
 
+static UnitTypeClass const UnitSiegeTank(UNIT_SIEGE_TANK,
+                                     30000,    // NAME:			Text name of this unit type.
+                                     "SGTK",       // NAME:			Text name of this unit type.
+                                     ANIM_FRAG2,   // EXPLOSION:	Type of explosion when destroyed.
+                                     3,            // Build level.
+                                     STRUCTF_NONE, // Building prerequisite.
+                                     true,         // Can this be a goodie surprise from a crate?
+                                     true,         // Is a leader type?
+                                     false,        // Only has eight facings?
+                                     false,        // Always use the given name for the vehicle?
+                                     false,        //	Is this a typical transport vehicle?
+                                     false,        // Can it be crushed by a heavy vehicle?
+                                     false,        // Can this unit squash infantry?
+                                     false,        // Does this unit harvest Tiberium?
+                                     false,        // Is invisible to radar?
+                                     true,         // Is selectable by player?
+                                     true,         // Can it be a target for attack or move?
+                                     false,        // Is it insignificant (won't be announced)?
+                                     false,        // Is it immune to normal combat damage?
+                                     true,         // Is it equipped with a combat turret?
+                                     false,        // Fires multiple shots in quick succession?
+                                     true,         // Can it be repaired in a repair facility?
+                                     true,         // Can the player construct or order this unit?
+                                     true,         // Is there a crew inside?
+                                     false,        // Does it have a rotating radar dish?
+                                     false,        // Is there an associated firing animation?
+                                     false,        // Must the turret be in a locked down position while moving?
+                                     true,         // Does it lay tracks while moving?
+                                     true,         // Is this a gigundo-rotund-enormous unit?
+                                     false,        // Is the unit's art as "chunky" cardinal facing only?
+                                     false,        // Is the unit capable of cloaking?
+                                     false,        // Does the unit have a constant animation?
+                                     -1,           // AMMO:			Number of shots it has (default).
+                                     150,          // STRENGTH:	Strength (in damage points).
+                                     10,           // SIGHTRANGE:	Range of sighting.
+                                     1500,          // COST:			Cost to build (Credits).
+                                     1,            // SCENARIO:	Starting availability scenario.
+                                     80,
+                                     62, // RISK/RWRD:	Risk/reward rating values.
+                                     HOUSEF_MULTI1 | HOUSEF_MULTI2 | HOUSEF_MULTI3 | HOUSEF_MULTI4 | HOUSEF_MULTI5
+                                         | HOUSEF_MULTI6 | HOUSEF_JP
+                                         | HOUSEF_GOOD | HOUSEF_BAD, // OWNABLE:		Ownable by house (bit field).
+                                     WEAPON_SIEGE_TANK,
+                                     WEAPON_NONE,
+                                     ARMOR_STEEL, // ARMOR:		Armor type
+                                     SPEED_TRACK, // MOVE:			Locomotion type.
+                                     MPH_MEDIUM_FAST,  // SPEED:		Miles per hour.
+                                     5,           // ROT:			Rate of turn (degrees per tick).
+                                     0,           // Turret center offset along body centerline.
+                                     MISSION_HUNT // ORDERS:		Default order to give new unit.
+);
+
+static UnitTypeClass const UnitSiegeMode(UNIT_SIEGE_MODE,
+                                     30001,    // NAME:			Text name of this unit type.
+                                     "SGMD",       // NAME:			Text name of this unit type.
+                                     ANIM_FRAG2,   // EXPLOSION:	Type of explosion when destroyed.
+                                     3,            // Build level.
+                                     STRUCTF_NONE, // Building prerequisite.
+                                     true,         // Can this be a goodie surprise from a crate?
+                                     true,         // Is a leader type?
+                                     false,        // Only has eight facings?
+                                     false,        // Always use the given name for the vehicle?
+                                     false,        //	Is this a typical transport vehicle?
+                                     false,        // Can it be crushed by a heavy vehicle?
+                                     false,        // Can this unit squash infantry?
+                                     false,        // Does this unit harvest Tiberium?
+                                     false,        // Is invisible to radar?
+                                     true,         // Is selectable by player?
+                                     true,         // Can it be a target for attack or move?
+                                     false,        // Is it insignificant (won't be announced)?
+                                     false,        // Is it immune to normal combat damage?
+                                     true,         // Is it equipped with a combat turret?
+                                     false,        // Fires multiple shots in quick succession?
+                                     true,         // Can it be repaired in a repair facility?
+                                     false,        // Can the player construct or order this unit?
+                                     true,         // Is there a crew inside?
+                                     false,        // Does it have a rotating radar dish?
+                                     false,        // Is there an associated firing animation?
+                                     false,        // Must the turret be in a locked down position while moving?
+                                     true,         // Does it lay tracks while moving?
+                                     true,         // Is this a gigundo-rotund-enormous unit?
+                                     false,        // Is the unit's art as "chunky" cardinal facing only?
+                                     false,        // Is the unit capable of cloaking?
+                                     false,        // Does the unit have a constant animation?
+                                     -1,           // AMMO:			Number of shots it has (default).
+                                     150,          // STRENGTH:	Strength (in damage points).
+                                     10,           // SIGHTRANGE:	Range of sighting.
+                                     1500,          // COST:			Cost to build (Credits).
+                                     1,            // SCENARIO:	Starting availability scenario.
+                                     80,
+                                     62, // RISK/RWRD:	Risk/reward rating values.
+                                     HOUSEF_MULTI1 | HOUSEF_MULTI2 | HOUSEF_MULTI3 | HOUSEF_MULTI4 | HOUSEF_MULTI5
+                                         | HOUSEF_MULTI6 | HOUSEF_JP
+                                         | HOUSEF_GOOD | HOUSEF_BAD, // OWNABLE:		Ownable by house (bit field).
+                                     WEAPON_SIEGE_CANNON,
+                                     WEAPON_NONE,
+                                     ARMOR_STEEL, // ARMOR:		Armor type
+                                     SPEED_TRACK, // MOVE:			Locomotion type.
+                                     MPH_IMMOBILE,  // SPEED:		Miles per hour.
+                                     5,           // ROT:			Rate of turn (degrees per tick).
+                                     0,           // Turret center offset along body centerline.
+                                     MISSION_HUNT // ORDERS:		Default order to give new unit.
+);
+
 /*
 **	This is the array of pointers to the static data associated with each
 **	vehicle type.
@@ -1241,6 +1345,8 @@ UnitTypeClass const* const UnitTypeClass::Pointers[UNIT_COUNT] = {
     &UnitTrex,      // UNIT_TREX
     &UnitRapt,      // UNIT_RAPT
     &UnitSteg,      // UNIT_STEG
+    &UnitSiegeTank,
+    &UnitSiegeMode,
 };
 
 /***********************************************************************************************
@@ -1515,9 +1621,9 @@ void UnitTypeClass::One_Time(void)
             **	Fetch the supporting data files for the unit.
             */
             if (Get_Resolution_Factor()) {
-                sprintf(buffer, "%sICNH", uclass.IniName);
+                sprintf(buffer, "%sICNH", index == UNIT_SIEGE_TANK ? "MTNK" : uclass.IniName);
             } else {
-                sprintf(buffer, "%sICON", uclass.IniName);
+                sprintf(buffer, "%sICON", index == UNIT_SIEGE_TANK ? "MTNK" : uclass.IniName);
             }
             _makepath(fullname, NULL, NULL, buffer, ".SHP");
             ((void const*&)uclass.CameoData) = MFCD::Retrieve(fullname);
@@ -1528,7 +1634,7 @@ void UnitTypeClass::One_Time(void)
         */
         // Assume funpark mode might be required. ST - 10/14/2019 11:53AM
         // if (!uclass.IsPieceOfEight || (Special.IsJurassic && AreThingiesEnabled) ) {
-        _makepath(fullname, NULL, NULL, uclass.IniName, ".SHP");
+        _makepath(fullname, NULL, NULL, index == UNIT_SIEGE_TANK ? "MTNK" : index == UNIT_SIEGE_MODE ? "HTNK" : uclass.IniName, ".SHP");
         ptr = MFCD::Retrieve(fullname);
         //} else {
         //	ptr = NULL;
@@ -1589,7 +1695,7 @@ void UnitTypeClass::Init(TheaterType theater)
                 ((void const*&)uclass.CameoData) = NULL;
 
                 if (uclass.IsBuildable) {
-                    sprintf(buffer, "%sICNH", uclass.IniName);
+                    sprintf(buffer, "%sICNH", index == UNIT_SIEGE_TANK ? "MTNK" : uclass.IniName);
                     _makepath(fullname, NULL, NULL, buffer, Theaters[theater].Suffix);
                     cameo_ptr = MFCD::Retrieve(fullname);
                     if (cameo_ptr) {

@@ -939,6 +939,8 @@ inline CELL Adjacent_Cell(CELL cell, DirType dir)
 // inline FacingType Facing_To_8(DirType facing) {return (FacingType)(((unsigned char)(facing|0x10))>>5);}
 inline char const* Text_String(int string)
 {
+    if (string == 30000) return "Siege Tank (click self to deploy)";
+    if (string == 30001) return "Siege Mode (click self to move)";
     return (Extract_String(SystemStrings, string));
 };
 

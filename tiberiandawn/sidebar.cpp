@@ -1877,6 +1877,11 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                               SHAPE_NORMAL | SHAPE_WIN_REL | (remapper ? SHAPE_FADING : SHAPE_NORMAL),
                               remapper);
                 IsTheaterShape = false;
+                if (index < BuildableCount && Buildables[index].BuildableType == RTTI_UNITTYPE && Buildables[index].BuildableID == UNIT_SIEGE_TANK) {
+                    cameo.Fill_Rect(0, sourceHeight - 14, sourceWidth - 1, sourceHeight - 1, BLACK);
+                    Fancy_Text_Print("SIEGE", sourceWidth / 2, sourceHeight - 13, WHITE, TBLACK, TPF_3POINT | TPF_CENTER);
+                    Fancy_Text_Print("TANK", sourceWidth / 2, sourceHeight - 7, WHITE, TBLACK, TPF_3POINT | TPF_CENTER);
+                }
 
                 /*
                 **	Darken this object because it cannot be produced or is otherwise

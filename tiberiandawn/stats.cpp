@@ -451,7 +451,7 @@ void Send_Statistics_Packet(void)
                 for (index = 0; index < Units.Count(); index++) {
                     UnitClass const* unit = Units.Ptr(index);
                     if (unit->House == player) {
-                        player->UnitTotals.Increment_Unit_Total(unit->Class->Type);
+                        if (unit->Class->Type <= UNIT_STEG) player->UnitTotals.Increment_Unit_Total(unit->Class->Type);
                     }
                 }
 

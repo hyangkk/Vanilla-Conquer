@@ -307,7 +307,7 @@ public:
     */
     UnitTrackerClass<AIRCRAFT_COUNT> AircraftTotals;
     UnitTrackerClass<INFANTRY_COUNT> InfantryTotals;
-    UnitTrackerClass<UNIT_COUNT> UnitTotals;
+    UnitTrackerClass<UNIT_STEG + 1> UnitTotals;
     UnitTrackerClass<STRUCT_COUNT> BuildingTotals;
 
     /*
@@ -315,7 +315,7 @@ public:
     */
     UnitTrackerClass<AIRCRAFT_COUNT> DestroyedAircraft;
     UnitTrackerClass<INFANTRY_COUNT> DestroyedInfantry;
-    UnitTrackerClass<UNIT_COUNT> DestroyedUnits;
+    UnitTrackerClass<UNIT_STEG + 1> DestroyedUnits;
     UnitTrackerClass<STRUCT_COUNT> DestroyedBuildings;
 
     /*
@@ -843,7 +843,7 @@ private:
     **	building is in construction, it will be reflected in this total.
     */
     int BQuantity[STRUCT_COUNT];
-    int UQuantity[UNIT_COUNT];
+    int UQuantity[UNIT_STEG + 1]; // Legacy saved layout; new types use CurUnits/heap scans.
     int IQuantity[INFANTRY_COUNT];
     int AQuantity[AIRCRAFT_COUNT];
 

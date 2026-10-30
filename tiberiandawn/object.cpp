@@ -76,6 +76,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "siegetank.h"
 #include "campaigndefense.h"
 #include "smoothmotion.h"
 
@@ -1396,7 +1397,14 @@ ResultType ObjectClass::Take_Damage(int& damage, int distance, WarheadType warhe
         **	Modify damage based on the warhead type and the armor of the object. This results
         **	in a reduced damage value, but never below 1 damage point.
         */
-        damage = Modify_Damage(damage, warhead, Class_Of().Armor, distance);
+        if (What_Am_I() == RTTI_UNIT && SiegeTank::Is(static_cast<UnitClass const*>(this))
+            && damage > 0 && warhead != WARHEAD_NONE && !Special.IsInert) {
+            // Arclite tanks use one point of flat armor in both modes.
+            int spread = Bound(distance >> Warheads[warhead].SpreadFactor, 0, 16);
+            damage = MAX(1, (damage >> spread) - 1);
+        } else {
+            damage = Modify_Damage(damage, warhead, Class_Of().Armor, distance);
+        }
         if (!damage)
             return (RESULT_NONE);
         if (damage>0 && What_Am_I()==RTTI_BUILDING && Campaign_SAM_Ground(static_cast<BuildingClass*>(this)))

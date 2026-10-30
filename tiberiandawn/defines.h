@@ -795,6 +795,8 @@ typedef enum BulletType : signed char
     BULLET_SPREADFIRE,  // Chain gun bullets.
     BULLET_HEADBUTT,    // Stegosaurus, Triceratops head butt
     BULLET_TREXBITE,    // Tyrannosaurus Rex's bite - especially bad for infantry
+    BULLET_SIEGE_TANK,
+    BULLET_SIEGE_CANNON,
     BULLET_COUNT,
     BULLET_FIRST = 0
 } BulletType;
@@ -1026,6 +1028,8 @@ typedef enum UnitType : signed char
     UNIT_TREX,      //	Tyranosaurus Rex
     UNIT_RAPT,      //	Velociraptor
     UNIT_STEG,      //	Stegasaurus
+    UNIT_SIEGE_TANK, // C&C-style Arclite tank. Append to preserve existing IDs.
+    UNIT_SIEGE_MODE, // Deployed form, never a separate production entry.
     UNIT_COUNT,
     UNIT_FIRST = 0
 } UnitType;
@@ -1865,6 +1869,7 @@ typedef enum WarheadType : signed char
     WARHEAD_HEADBUTT,     // Other dinosaurs butt into people
     WARHEAD_FEEDME,       // T-Rex eats people, hurts vehicles/buildings
 
+    WARHEAD_SIEGE_EXPLOSIVE,
     WARHEAD_COUNT
 } WarheadType;
 
@@ -1902,6 +1907,8 @@ typedef enum WeaponType : signed char
     WEAPON_HONEST_JOHN,
     WEAPON_STEG,
     WEAPON_TREX,
+    WEAPON_SIEGE_TANK,
+    WEAPON_SIEGE_CANNON,
     WEAPON_COUNT
 } WeaponType;
 

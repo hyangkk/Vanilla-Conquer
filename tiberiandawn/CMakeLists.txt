@@ -92,6 +92,7 @@ set(TIBDAWN_SRC
     rules.cpp
     saveload.cpp
     missionstarts.cpp
+    siegetank.cpp
     campaignbike.cpp
     campaignformation.cpp
     campaigntraffic.cpp

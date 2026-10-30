@@ -1,5 +1,6 @@
 // Local, deterministic congestion recovery. Native movement still owns every step.
 #include "function.h"
+#include "siegetank.h"
 #include "campaigntraffic.h"
 #include <algorithm>
 #include <map>
@@ -15,7 +16,7 @@ bool Active(FootClass const* f)
         ||f->IsALoaner||f->IsUnloading||f->IsDeploying||f->IsTethered||f->In_Radio_Contact()
         ||!Map.In_Radar(Coord_Cell(f->Coord)))return false;
     if(f->What_Am_I()==RTTI_UNIT){auto u=static_cast<UnitClass const*>(f);
-        if(u->Class->IsToHarvest||u->Class->IsTransporter||u->Class->Speed==SPEED_FLOAT
+        if((SiegeTank::Is(u) && (u->Class->Type == UNIT_SIEGE_MODE || SiegeTank::Transitioning(u))) || u->Class->IsToHarvest||u->Class->IsTransporter||u->Class->Speed==SPEED_FLOAT
             ||u->Class->Speed==SPEED_HOVER||u->Class->Type==UNIT_MCV)return false;
     }else if(f->What_Am_I()!=RTTI_INFANTRY)return false;
     return true;

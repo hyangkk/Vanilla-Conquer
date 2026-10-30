@@ -1,5 +1,6 @@
 // Runtime bookkeeping stays outside serialized game object layouts.
 #include "function.h"
+#include "siegetank.h"
 #include "campaigndefense.h"
 #include "campaignenemies.h"
 #include "campaignwaves.h"
@@ -99,7 +100,7 @@ bool Duplicate(FootClass* original)
     return true;
 }
 }
-void Campaign_Enemies_Reset() { Campaign_Traffic_Reset();Campaign_Formation_Reset();processed.clear(); companions.clear();pending.clear();Campaign_Bike_Reset(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
+void Campaign_Enemies_Reset() { SiegeTank::Reset(); Campaign_Traffic_Reset();Campaign_Formation_Reset();processed.clear(); companions.clear();pending.clear();Campaign_Bike_Reset(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
 void Campaign_Enemies_Mark_Extra(const TechnoClass* object) { processed.insert(object->As_Target()); }
 void Campaign_Enemies_Forget(const TechnoClass* object) {
     TARGET id=object->As_Target(); Campaign_Traffic_Forget(id);Campaign_Formation_Forget(id);processed.erase(id); companions.erase(id);pending.erase(id);Campaign_Bike_Forget(id);
@@ -151,7 +152,7 @@ bool Campaign_Enemies_Save(FileClass& file)
     }
     count=pending.size();if(file.Write(&count,sizeof(count))!=sizeof(count)) return false;
     for(auto entry:pending){std::uint32_t data[2]={std::uint32_t(entry.first),entry.second};if(file.Write(data,sizeof(data))!=sizeof(data))return false;}
-    return Campaign_Waves_Save(file) && Campaign_Bike_Save(file) && Campaign_Formation_Save(file);
+    return Campaign_Waves_Save(file) && Campaign_Bike_Save(file) && Campaign_Formation_Save(file) && SiegeTank::Save(file);
 }
 bool Campaign_Enemies_Load(FileClass& file)
 {
@@ -181,7 +182,7 @@ bool Campaign_Enemies_Load(FileClass& file)
         for(unsigned i=0;i<count;++i){std::uint32_t data[2];if(file.Read(data,sizeof(data))!=sizeof(data)||data[1]<1||data[1]>2||pending.count(data[0])
             ||(!Is_Target_Unit(data[0])&&!Is_Target_Infantry(data[0])&&!Is_Target_Aircraft(data[0])))return false;pending[data[0]]=data[1];}
     }
-    return Campaign_Waves_Load(file) && Campaign_Bike_Load(file) && Campaign_Formation_Load(file);
+    return Campaign_Waves_Load(file) && Campaign_Bike_Load(file) && Campaign_Formation_Load(file) && SiegeTank::Load(file);
 }
 
 bool Campaign_Enemy_House(HouseClass const* house)

@@ -7108,7 +7108,7 @@ void HouseClass::Tracking_Remove(TechnoClass const* techno)
         if (type >= UNIT_RA_COUNT)
             type -= UNIT_RA_COUNT;
 #endif
-        UQuantity[type]--;
+        if (type <= UNIT_STEG) UQuantity[type]--;
         break;
 
 #if (0)
@@ -7209,9 +7209,9 @@ void HouseClass::Tracking_Add(TechnoClass const* techno)
         quant = unit;
         if (quant >= UNIT_RA_COUNT)
             quant -= UNIT_RA_COUNT;
-        UQuantity[quant]++;
+        if (quant <= UNIT_STEG) UQuantity[quant]++;
 #else
-        UQuantity[unit]++;
+        if (unit <= UNIT_STEG) UQuantity[unit]++;
 #endif
         UScan |= (1L << unit);
 #if (0) // This is a stats thing. ST - 7/24/2019 3:08PM

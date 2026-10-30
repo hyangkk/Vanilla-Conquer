@@ -85,6 +85,7 @@ public:
 
     bool Goto_Clear_Spot(void);
     bool Try_To_Deploy(void);
+    virtual void Assign_Destination(TARGET target);
 
     int Tiberium_Check(CELL& center, int x, int y);
     bool Flag_Attach(HousesType house);

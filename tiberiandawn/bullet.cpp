@@ -46,6 +46,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "siegetank.h"
 #include "campaigndefense.h"
 
 #define GRAVITY 3
@@ -430,7 +431,9 @@ void BulletClass::AI(void)
             /*
             **	Non-aircraft targets apply damage to the ground.
             */
-            if (Campaign_SAM_Chain_Impact(this,As_Techno(TarCom))) {
+            if (SiegeTank::Impact(this,TarCom)) {
+                // Dedicated tank impact and three-ring siege splash.
+            } else if (Campaign_SAM_Chain_Impact(this,As_Techno(TarCom))) {
                 // The direct hit and up to two travelling ricochets replace splash.
             } else if (!Is_Target_Aircraft(TarCom) || As_Aircraft(TarCom)->In_Which_Layer() == LAYER_GROUND) {
                 Explosion_Damage(Coord, Strength, Payback, Class->Warhead);

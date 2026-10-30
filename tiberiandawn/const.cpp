@@ -92,6 +92,8 @@ WeaponTypeClass const Weapons[WEAPON_COUNT] = {
     {BULLET_HONEST_JOHN, 100, 200, 0x0A00, VOC_ROCKET1, ANIM_NONE}, //	WEAPON_HONEST_JOHN
     {BULLET_HEADBUTT, 100, 30, 0x0180, VOC_DINOATK1, ANIM_NONE},    // WEAPON_STEG
     {BULLET_TREXBITE, 155, 30, 0x0180, VOC_DINOATK1, ANIM_NONE},    // WEAPON_TREX
+    {BULLET_SIEGE_TANK, 30, 23, 7 * ICON_LEPTON_W, VOC_TANK3, ANIM_MUZZLE_FLASH},
+    {BULLET_SIEGE_CANNON, 70, 47, 12 * ICON_LEPTON_W, VOC_TANK1, ANIM_MUZZLE_FLASH},
 };
 
 /***************************************************************************
@@ -147,6 +149,7 @@ WarheadTypeClass const Warheads[WARHEAD_COUNT] = {
     {255, false, false, false, {0x100, 0x01, 0x01, 0x01, 0x01}}, //	WARHEAD_SPORE
     {1, true, true, false, {0x100, 0xC0, 0x80, 0x20, 0x08}},     //	WARHEAD_HEADBUTT
     {1, true, true, false, {0x100, 0xC0, 0x80, 0x20, 0x08}},     //	WARHEAD_FEEDME
+    {0, true, true, false, {0x100,0x100,0x100,0x100,0x100}}, // Siege size falloff is resolved at impact.
 };
 
 /***************************************************************************
