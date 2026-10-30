@@ -112,6 +112,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignbike.h"
 #include "campaigndefense.h"
 
 /***************************************************************************
@@ -2292,6 +2293,7 @@ void TechnoClass::Assign_Target(TARGET target)
  *=============================================================================================*/
 int TechnoClass::Rearm_Delay(bool second) const
 {
+    if(Campaign_Bike_Active(this)) return MAX(1,(((int)Weapons[WEAPON_DRAGON].ROF * House->ROFBias)+3)/2);
     if (second) {
         return Campaign_Defense_Rearm_Delay(this, ((int)Weapons[Techno_Type_Class()->Primary].ROF * House->ROFBias) + 3);
     }
@@ -2330,6 +2332,7 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
         return (NULL);
     }
     WeaponTypeClass const* weapon = (which == 0) ? &Weapons[tclass.Primary] : &Weapons[tclass.Secondary];
+    if(which==0 && Campaign_Bike_Active(this)) weapon=&Weapons[WEAPON_NIKE];
     BulletTypeClass const& btype = BulletTypeClass::As_Reference(weapon->Fires);
 
     /*

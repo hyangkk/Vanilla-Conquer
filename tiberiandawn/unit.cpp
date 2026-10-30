@@ -94,6 +94,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignbike.h"
 #include "campaignenemies.h"
 #include "ccini.h"
 
@@ -326,6 +327,7 @@ void UnitClass::AI(void)
     }
 
     TarComClass::AI();
+    if(IsActive && !IsInLimbo && Strength>0) Campaign_Bike_AI(this);
 
     /*
     **	Delete this unit if it finds itself off the edge of the map and it is in

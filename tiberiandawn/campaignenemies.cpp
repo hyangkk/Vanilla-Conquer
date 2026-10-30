@@ -3,6 +3,8 @@
 #include "campaigndefense.h"
 #include "campaignenemies.h"
 #include "campaignwaves.h"
+#include "campaignbike.h"
+#include <limits>
 #include <cstdint>
 #include <cstring>
 #include <set>
@@ -14,7 +16,8 @@ struct Companion {
     TARGET extra, target, destination;
     MissionType mission;
 };
-std::map<TARGET, Companion> companions;
+std::multimap<TARGET, Companion> companions;
+std::map<TARGET,unsigned> pending;
 FootClass* Foot(TARGET target)
 {
     auto object = As_Techno(target);
@@ -43,7 +46,7 @@ void SyncOrders()
         }
     }
 }
-const char magic[8] = {'C','N','C','E','N','M','0','1'};
+const char magic[8] = {'C','N','C','E','N','M','0','2'};
 bool Eligible(FootClass* object)
 {
     return object && object->IsActive && !object->IsInLimbo && object->Strength > 0
@@ -86,16 +89,15 @@ bool Duplicate(FootClass* original)
     extra->Commence();
     extra->Assign_Target(original->TarCom);
     extra->Assign_Destination(original->NavCom);
-    processed.insert(original->As_Target());
     processed.insert(extra->As_Target());
-    companions[original->As_Target()] = {extra->As_Target(), original->TarCom, original->NavCom, original->Mission};
+    companions.emplace(original->As_Target(),Companion{extra->As_Target(), original->TarCom, original->NavCom, original->Mission});
     return true;
 }
 }
-void Campaign_Enemies_Reset() { processed.clear(); companions.clear(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
+void Campaign_Enemies_Reset() { processed.clear(); companions.clear();pending.clear();Campaign_Bike_Reset(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
 void Campaign_Enemies_Mark_Extra(const TechnoClass* object) { processed.insert(object->As_Target()); }
 void Campaign_Enemies_Forget(const TechnoClass* object) {
-    TARGET id=object->As_Target(); processed.erase(id); companions.erase(id);
+    TARGET id=object->As_Target(); processed.erase(id); companions.erase(id);pending.erase(id);Campaign_Bike_Forget(id);
     for (auto it=companions.begin(); it!=companions.end();) {
         if (it->second.extra==id) it=companions.erase(it); else ++it;
     }
@@ -103,13 +105,28 @@ void Campaign_Enemies_Forget(const TechnoClass* object) {
 void Campaign_Enemies_Apply()
 {
     if (GameToPlay != GAME_NORMAL || !GameActive || !PlayerPtr || !PlayerPtr->IsHuman || ScenarioInit) return;
+    for (int i=0;i<Houses.Count();++i) {
+        auto h=Houses.Ptr(i);
+        if (Campaign_Enemy_House(h) && (h->ActiveBScan&(STRUCTF_WEAP|STRUCTF_HAND|STRUCTF_BARRACKS|STRUCTF_AIRSTRIP|STRUCTF_HELIPAD))) {
+            h->IsStarted=true;h->IsAlerted=true;
+        }
+    }
+    for (int i=0;i<Factories.Count();++i) {
+        auto obj=Factories.Ptr(i)->Get_Object();
+        if (obj && !processed.count(obj->As_Target()) && !pending.count(obj->As_Target())) Campaign_Enemies_Produced(obj);
+    }
     SyncOrders();
     std::vector<FootClass*> originals;
     for (int i=0;i<Units.Count();++i) originals.push_back(Units.Ptr(i));
     for (int i=0;i<Infantry.Count();++i) originals.push_back(Infantry.Ptr(i));
     for (int i=0;i<Aircraft.Count();++i) originals.push_back(Aircraft.Ptr(i));
     for (auto object : originals) {
-        if (Eligible(object) && !processed.count(object->As_Target())) Duplicate(object);
+        if (Eligible(object) && !processed.count(object->As_Target())) {
+            TARGET id=object->As_Target();unsigned left=pending.count(id)?pending[id]:1;
+            while (left && Duplicate(object)) --left;
+            if (left) pending[id]=left;
+            else {processed.insert(id);pending.erase(id);}
+        }
     }
 }
 bool Campaign_Enemies_Save(FileClass& file)
@@ -127,7 +144,9 @@ bool Campaign_Enemies_Save(FileClass& file)
             std::uint32_t(entry.second.target), std::uint32_t(entry.second.destination), std::uint32_t(entry.second.mission)};
         if (file.Write(data,sizeof(data)) != sizeof(data)) return false;
     }
-    return Campaign_Waves_Save(file);
+    count=pending.size();if(file.Write(&count,sizeof(count))!=sizeof(count)) return false;
+    for(auto entry:pending){std::uint32_t data[2]={std::uint32_t(entry.first),entry.second};if(file.Write(data,sizeof(data))!=sizeof(data))return false;}
+    return Campaign_Waves_Save(file) && Campaign_Bike_Save(file);
 }
 bool Campaign_Enemies_Load(FileClass& file)
 {
@@ -135,7 +154,9 @@ bool Campaign_Enemies_Load(FileClass& file)
     char header[sizeof(magic)];
     int bytes = file.Read(header, sizeof(header));
     if (!bytes) return true; // Native old saves have no optional footer.
-    if (bytes != sizeof(header) || std::memcmp(header, magic, sizeof(magic))) return false;
+    const char oldMagic[8]={'C','N','C','E','N','M','0','1'};
+    bool legacy=bytes==8&&!std::memcmp(header,oldMagic,8);
+    if (bytes != sizeof(header) || (!legacy&&std::memcmp(header, magic, sizeof(magic)))) return false;
     std::uint32_t count;
     if (file.Read(&count, sizeof(count)) != sizeof(count) || count > UNIT_MAX+INFANTRY_MAX+AIRCRAFT_MAX) return false;
     for (std::uint32_t i=0; i<count; ++i) {
@@ -143,12 +164,55 @@ bool Campaign_Enemies_Load(FileClass& file)
         if (file.Read(&id, sizeof(id)) != sizeof(id)) return false;
         processed.insert(TARGET(id));
     }
-    if (file.Read(&count,sizeof(count)) != sizeof(count) || count > (UNIT_MAX+INFANTRY_MAX+AIRCRAFT_MAX)/2) return false;
+    if (file.Read(&count,sizeof(count)) != sizeof(count) || count > UNIT_MAX+INFANTRY_MAX+AIRCRAFT_MAX) return false;
     for (std::uint32_t i=0;i<count;++i) {
         std::uint32_t data[5];
         if (file.Read(data,sizeof(data)) != sizeof(data)) return false;
         if (data[4] != std::uint32_t(MISSION_NONE) && data[4] >= MISSION_COUNT) return false;
-        companions[TARGET(data[0])] = {TARGET(data[1]),TARGET(data[2]),TARGET(data[3]),MissionType(data[4])};
+        companions.emplace(TARGET(data[0]),Companion{TARGET(data[1]),TARGET(data[2]),TARGET(data[3]),MissionType(data[4])});
     }
-    return Campaign_Waves_Load(file);
+    if(!legacy){
+        if(file.Read(&count,sizeof(count))!=sizeof(count)||count>UNIT_MAX+INFANTRY_MAX+AIRCRAFT_MAX)return false;
+        for(unsigned i=0;i<count;++i){std::uint32_t data[2];if(file.Read(data,sizeof(data))!=sizeof(data)||data[1]<1||data[1]>2||pending.count(data[0])
+            ||(!Is_Target_Unit(data[0])&&!Is_Target_Infantry(data[0])&&!Is_Target_Aircraft(data[0])))return false;pending[data[0]]=data[1];}
+    }
+    return Campaign_Waves_Load(file) && Campaign_Bike_Load(file);
+}
+
+bool Campaign_Enemy_House(HouseClass const* house)
+{
+    return GameToPlay==GAME_NORMAL && PlayerPtr && PlayerPtr->IsHuman && house && house->IsActive && !house->IsHuman
+        && house!=PlayerPtr && !house->IsDefeated && house->Class->House!=HOUSE_NEUTRAL
+        && !house->Is_Ally(PlayerPtr) && !PlayerPtr->Is_Ally(house);
+}
+void Campaign_Enemies_Produced(TechnoClass* object)
+{
+    if(!object||!Campaign_Enemy_House(object->House))return;
+    auto kind=object->What_Am_I();if(kind!=RTTI_UNIT&&kind!=RTTI_INFANTRY&&kind!=RTTI_AIRCRAFT)return;
+    if(!processed.count(object->As_Target())&&!pending.count(object->As_Target()))pending[object->As_Target()]=2;
+}
+void Campaign_Enemy_Harvest(HouseClass* house,unsigned credits)
+{
+    if(!Campaign_Enemy_House(house)){house->Harvested(credits);return;}
+    // Deposit as liquid credits so silos cannot silently discard the 10x yield.
+    std::int64_t cap=std::numeric_limits<int>::max()-MAX(0,house->Tiberium);
+    house->Credits=int(std::min(cap,std::int64_t(house->Credits)+10*std::int64_t(credits)));
+    house->HarvestedCredits=int(std::min(std::int64_t(std::numeric_limits<int>::max()),std::int64_t(house->HarvestedCredits)+10*std::int64_t(credits)));
+}
+TechnoTypeClass const* Campaign_Enemy_Suggest(HouseClass const* house,RTTIType kind)
+{
+    if(!Campaign_Enemy_House(house))return nullptr;
+    std::vector<TechnoTypeClass const*> choices;
+    auto consider=[&](TechnoTypeClass const& type){if(type.Primary!=WEAPON_NONE&&house->Can_Build(&type,house->Class->House)&&type.Cost_Of()<=house->Available_Money())choices.push_back(&type);};
+    if((kind==RTTI_UNIT||kind==RTTI_UNITTYPE)&&house->CurUnits<house->MaxUnit){
+        if((house->ActiveBScan&STRUCTF_REFINERY)&&!(house->UScan&UNITF_HARVESTER)){
+            auto& h=UnitTypeClass::As_Reference(UNIT_HARVESTER);if(house->Can_Build(&h,house->Class->House)&&h.Cost_Of()<=house->Available_Money())return &h;
+        }
+        for(int i=UNIT_FIRST;i<UNIT_COUNT;++i)consider(UnitTypeClass::As_Reference(UnitType(i)));
+    }
+    if((kind==RTTI_INFANTRY||kind==RTTI_INFANTRYTYPE)&&house->CurInfantry<house->MaxInfantry)
+        for(int i=INFANTRY_FIRST;i<INFANTRY_COUNT;++i)consider(InfantryTypeClass::As_Reference(InfantryType(i)));
+    if((kind==RTTI_AIRCRAFT||kind==RTTI_AIRCRAFTTYPE)&&house->CurAircraft<house->MaxAircraft)
+        for(int i=AIRCRAFT_FIRST;i<AIRCRAFT_COUNT;++i)consider(AircraftTypeClass::As_Reference(AircraftType(i)));
+    return choices.empty()?nullptr:choices[Random_Pick(0,int(choices.size())-1)];
 }

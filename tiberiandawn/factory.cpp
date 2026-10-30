@@ -52,6 +52,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 
 /***********************************************************************************************
  * FactoryClass::Validate -- validates factory pointer													  *
@@ -400,6 +401,7 @@ bool FactoryClass::Set(TechnoTypeClass const& object, HouseClass& house)
         House = Object->House;
         Balance = object.Cost_Of() * house.CostBias;
         Object->PurchasePrice = Balance;
+        Campaign_Enemies_Produced(Object);
     }
 
     /*
@@ -537,6 +539,7 @@ bool FactoryClass::Start(void)
 
             if (Object) {
                 time = Object->Class_Of().Time_To_Build(House->Class->House);
+                if(Campaign_Enemy_House(House) && Object->What_Am_I()!=RTTI_BUILDING) time=MAX(1,time/2);
             } else {
                 time = TICKS_PER_MINUTE * 5;
             }

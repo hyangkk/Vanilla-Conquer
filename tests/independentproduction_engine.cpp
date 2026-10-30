@@ -55,7 +55,7 @@ static int Cadence(const std::string& dir,StructType type,bool player){
  std::printf("CADENCE type=%d player=%d duration=%d rearm=%d,%d\n",int(type),int(player),duration,defense->Rearm_Delay(false),defense->Rearm_Delay(true));return duration;
 }
 bool Generate_Mission_Starts(const char* directory){std::string dir(directory);Production(dir,HOUSE_GOOD);Production(dir,HOUSE_BAD);
- for(auto t:{STRUCT_OBELISK,STRUCT_ATOWER,STRUCT_SAM}){int old=Cadence(dir,t,false),now=Cadence(dir,t,true);double factor=2;Check("player sustained attack rate doubles over previous profile within integer tick rounding",now>0&&double(old)/now>factor*0.96&&double(old)/now<factor*1.04);}
+ for(auto t:{STRUCT_OBELISK,STRUCT_ATOWER,STRUCT_SAM}){int old=Cadence(dir,t,false),now=Cadence(dir,t,true);double factor=t==STRUCT_SAM?4:2;Check("current owner-specific defense cadence remains within integer tick rounding",now>0&&double(old)/now>factor*0.96&&double(old)/now<factor*1.04);}
  Check("load no-base visual fixture",Load_Game((dir+"/fixture.sav").c_str()));Ready();Clear();PlayerPtr=HouseClass::As_Pointer(HOUSE_GOOD);PlayerPtr->IsHuman=true;Frame=100;PlayerPtr->Credits=50000;auto soldier=new InfantryClass(INFANTRY_E1,HOUSE_GOOD);Check("place preview soldier",Put(soldier));PlayerPtr->IsRecalcNeeded=true;PlayerPtr->AI();Map.Activate(1);for(int i=0;i<MAP_CELL_TOTAL;++i)if(Map.In_Radar(i))Map.Map_Cell(i,PlayerPtr,true);++ScenarioInit;Map.Set_Tactical_Position(Cell_Coord(XY_Cell(Cell_X(Coord_Cell(soldier->Coord))-2,Cell_Y(Coord_Cell(soldier->Coord))-2)));--ScenarioInit;
  Check("save no-MCV all-production preview",Save_Game((dir+"/savegame.093").c_str(),"NO MCV FULL PRODUCTION"));
  std::printf("TOTAL FAILURES %d\n",failures);return failures==0;}

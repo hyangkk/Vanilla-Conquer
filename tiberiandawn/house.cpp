@@ -98,6 +98,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "campaignperks.h"
 
 /*
@@ -3846,6 +3847,7 @@ TechnoTypeClass const* HouseClass::Suggest_New_Object(RTTIType objecttype) const
         }
         break;
     }
+    if(!techno) techno=Campaign_Enemy_Suggest(this,objecttype);
     return (techno);
 }
 

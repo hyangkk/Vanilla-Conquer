@@ -95,6 +95,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignenemies.h"
 #include "campaignperks.h"
 #include "campaigndefense.h"
 #include "ccini.h"
@@ -4552,7 +4553,7 @@ int BuildingClass::Mission_Harvest(void)
                 int bail = techno->Offload_Tiberium_Bail();
 
                 if (bail) {
-                    House->Harvested(bail);
+                    Campaign_Enemy_Harvest(House,bail);
                     if (techno->Tiberium_Load()) {
                         return (1);
                     }
