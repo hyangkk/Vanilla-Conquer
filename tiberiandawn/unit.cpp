@@ -903,7 +903,7 @@ ResultType UnitClass::Take_Damage(int& damage, int distance, WarheadType warhead
                 InfantryClass* i = 0;
                 if (Class->Primary == WEAPON_NONE) {
                     i = new InfantryClass(INFANTRY_C1, House->Class->House);
-                    i->IsTechnician = true;
+                    if (i) i->IsTechnician = true;
                 } else {
                     i = new InfantryClass(INFANTRY_E1, House->Class->House);
                 }
