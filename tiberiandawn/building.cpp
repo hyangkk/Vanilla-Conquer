@@ -95,6 +95,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignexpansion.h"
 #include "campaignenemies.h"
 #include "campaignperks.h"
 #include "campaigndefense.h"
@@ -2217,6 +2218,8 @@ int BuildingClass::Exit_Object(TechnoClass* base)
     **	will be considered as to have legally entered the visible map domain.
     */
     base->IsLocked = true;
+    int expanded = Campaign_Expansion_Exit(this, base);
+    if (expanded >= 0) return expanded;
 
     /*
     **	Find a good cell to unload the object to. The object, probably a vehicle
@@ -5519,6 +5522,7 @@ bool BuildingClass::Can_Player_Move(void) const
 bool BuildingClass::Passes_Proximity_Check(CELL homecell)
 {
     if (Campaign_Local_Player(House)) return Class->Legal_Placement(homecell);
+    if (Campaign_Enemy_House(House)) return Class->Legal_Placement(homecell) && Campaign_Expansion_Near(House, homecell);
 
     /*
     ** In editor mode, the proximity check always passes.

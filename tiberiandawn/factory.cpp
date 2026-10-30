@@ -744,8 +744,9 @@ bool FactoryClass::Completed(void)
     Validate();
     if (Object && Fetch_Stage() == STEP_COUNT) {
         // Award once, only after a locally produced infantry unit has entered play.
-        if (Object->What_Am_I() == RTTI_INFANTRY && House && House == PlayerPtr
-            && House->IsHuman && GameToPlay == GAME_NORMAL) {
+        // AI wall placement converts/deletes Object before completion. Check owner first.
+        if (House && House == PlayerPtr && House->IsHuman && GameToPlay == GAME_NORMAL
+            && Object->What_Am_I() == RTTI_INFANTRY) {
             House->Refund_Money(100000);
             if (static_cast<InfantryClass*>(Object)->Class->Type == INFANTRY_E2) {
                 // This reserve exceeds the total drain possible within the building heap limit.

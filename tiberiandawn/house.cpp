@@ -98,6 +98,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignexpansion.h"
 #include "campaignenemies.h"
 #include "campaignperks.h"
 
@@ -2935,7 +2936,7 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                 TechnoClass* builder = pending->Who_Can_Build_Me(false, false);
                 TechnoTypeClass const* object_type = pending->Techno_Type_Class();
 
-                if ((builder && builder->Exit_Object(pending)) || (!builder && Campaign_Production_Exit(pending))) {
+                if ((builder && builder->Exit_Object(pending) == 2) || (!builder && Campaign_Production_Exit(pending))) {
 
                     /*
                     **	Since the object has left the factory under its own power, delete
@@ -3563,6 +3564,8 @@ TechnoTypeClass const* HouseClass::Suggest_New_Object(RTTIType objecttype) const
 {
     Validate();
     TechnoTypeClass const* techno = NULL;
+    // Campaign construction and MCV expansion take priority over fixed blueprints/team quotas.
+    if (auto expansion = Campaign_Expansion_Suggest(this, objecttype)) return expansion;
 
 #ifdef USE_RA_AI
     //

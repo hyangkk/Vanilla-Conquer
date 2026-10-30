@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaignexpansion.h"
 #include "campaignenemies.h"
 #include "campaignwaves.h"
 #include "logic.h"
@@ -185,6 +186,7 @@ void LogicClass::AI(void)
     if (Frame % TICKS_PER_SECOND == 0) {
         Campaign_Enemies_Apply();
         Campaign_Waves_AI();
+        Campaign_Expansion_AI();
     }
 
     /*
@@ -277,7 +279,7 @@ void LogicClass::AI(void)
     /*
     **	Map related logic is performed.
     */
-    Map.Logic();
+    Campaign_Expansion_Resources();
 
     //	Heap_Dump_Check( "After Map.Logic" );
 

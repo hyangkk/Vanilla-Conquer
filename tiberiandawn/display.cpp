@@ -77,6 +77,8 @@
  *   DisplayClass::Prev_Object -- Searches for the previous object on the map.                 *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 #include "function.h"
+#include "campaignexpansion.h"
+#include "campaignenemies.h"
 #include "campaignperks.h"
 #include "smoothmotion.h"
 #include "common/fading.h"
@@ -892,6 +894,9 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
         return static_cast<BuildingTypeClass const*>(object)->Legal_Placement(trycell);
     }
 
+    auto owner = HouseClass::As_Pointer(house);
+    if (Campaign_Enemy_House(owner))
+        return static_cast<BuildingTypeClass const*>(object)->Legal_Placement(trycell) && Campaign_Expansion_Near(owner,trycell);
     ptr = list;
     while (*ptr != REFRESH_EOL) {
         CELL cell = trycell + *ptr++;
