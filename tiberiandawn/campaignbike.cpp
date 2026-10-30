@@ -37,29 +37,42 @@ void Campaign_Bike_AI(UnitClass* bike)
     auto id=bike->As_Target();auto it=nextIon.find(id);
     if(it!=nextIon.end()&&Frame<it->second)return;
     nextIon[id]=Frame+TICKS_PER_SECOND;
-    std::vector<TechnoClass*> targets;
+    struct IonTarget {TechnoClass* object;COORDINATE coord;};
+    std::vector<IonTarget> targets;
+    auto hostile=[&](HouseClass const* house){return house&&house!=bike->House&&house->Class->House!=HOUSE_NEUTRAL
+        &&!bike->House->Is_Ally(house)&&!house->Is_Ally(bike->House);};
     auto consider=[&](TechnoClass* target){
         if(!target||!target->IsActive||target->IsInLimbo||target->Strength<=0||!target->House
-            ||target->House==bike->House||target->House->Class->House==HOUSE_NEUTRAL
-            ||bike->House->Is_Ally(target->House)||target->House->Is_Ally(bike->House)
-            ||!target->Techno_Type_Class()->IsLegalTarget||target->Is_Cloaked(bike->House)
-            ||(!target->IsDiscoveredByPlayer&&target->What_Am_I()!=RTTI_AIRCRAFT)
-            ||!Map.In_Radar(Coord_Cell(target->Coord))||bike->Distance(target)>10*ICON_LEPTON_W)return;
-        if(target->What_Am_I()==RTTI_INFANTRY&&*static_cast<InfantryClass*>(target)==INFANTRY_DELPHI)return;
-        targets.push_back(target);
+            ||!hostile(target->House)||!Map.In_Radar(Coord_Cell(target->Coord))||target->Is_Cloaked(bike->House)
+            ||(!target->IsDiscoveredByPlayer&&target->What_Am_I()!=RTTI_AIRCRAFT
+                &&!(target->What_Am_I()==RTTI_BUILDING&&Map[Coord_Cell(target->Coord)].Is_Visible(bike->House)))
+            ||bike->Distance(target)>10*ICON_LEPTON_W)return;
+        // Enemy-owned civilian/objective types participate even if normal weapon AI ignores them.
+        targets.push_back(IonTarget{target,target->Target_Coord()});
     };
     for(int i=0;i<Units.Count();++i)consider(Units.Ptr(i));
     for(int i=0;i<Infantry.Count();++i)consider(Infantry.Ptr(i));
     for(int i=0;i<Buildings.Count();++i)consider(Buildings.Ptr(i));
     for(int i=0;i<Aircraft.Count();++i)consider(Aircraft.Ptr(i));
+    // Walls are owned cell overlays, not Techno objects. Scan only the local range.
+    CELL center=Coord_Cell(bike->Center_Coord());
+    for(int y=MAX(Map.MapCellY,Cell_Y(center)-11);y<=MIN(Map.MapCellY+Map.MapCellHeight-1,Cell_Y(center)+11);++y)
+        for(int x=MAX(Map.MapCellX,Cell_X(center)-11);x<=MIN(Map.MapCellX+Map.MapCellWidth-1,Cell_X(center)+11);++x){
+            CELL c=XY_Cell(x,y);auto const& cell=Map[c];
+            if(cell.Overlay==OVERLAY_NONE||cell.Owner<HOUSE_FIRST||cell.Owner>=HOUSE_COUNT
+                ||!OverlayTypeClass::As_Reference(cell.Overlay).IsWall||!cell.Is_Visible(bike->House)
+                ||!hostile(HouseClass::As_Pointer(cell.Owner))||::Distance(bike->Center_Coord(),Cell_Coord(c))>10*ICON_LEPTON_W)continue;
+            targets.push_back(IonTarget{nullptr,Cell_Coord(c)});
+        }
     if(targets.empty())return;
-    auto target=targets[Random_Pick(0,int(targets.size())-1)];
-    auto ion=new AnimClass(ANIM_ION_CANNON,target->Target_Coord());
+    auto choice=targets[Random_Pick(0,int(targets.size())-1)];
+    auto target=choice.object;
+    auto ion=new AnimClass(ANIM_ION_CANNON,choice.coord);
     if(!ion)return;
     ion->Set_Owner(bike->House->Class->House);
     // The original ion animation deals its normal 600 PB ground explosion.
     // Its ground explosion cannot reach airborne targets, so resolve that hit here.
-    if(target->What_Am_I()==RTTI_AIRCRAFT&&static_cast<AircraftClass*>(target)->Altitude>0){
+    if(target&&target->What_Am_I()==RTTI_AIRCRAFT&&static_cast<AircraftClass*>(target)->Altitude>0){
         int damage=600;target->Take_Damage(damage,0,WARHEAD_PB,bike);
     }
 }
