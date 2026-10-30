@@ -16,7 +16,9 @@ bool Generate_Mission_Starts(const char* directory){
   bool music=false;for(int song=THEME_FIRST;song<=THEME_LAST;++song)if(Theme.Is_Allowed(ThemeType(song)))music=true;
   Check("disc search path has a playable soundtrack",music);
   Check("mission identity and frame zero",root==Scen.ScenarioName&&Frame==0);
-  Check("opening credits fifty thousand",PlayerPtr->Credits==50000);
+  CCFileClass file((root+".INI").c_str());CCINIClass ini;
+  Check("opening scenario INI loads",ini.Load(file,false));
+  Check("opening credits match original scenario",PlayerPtr->Credits==ini.Get_Int(PlayerPtr->Class->IniName,"Credits",0)*100);
   Check("all tech and power survive cold load",Campaign_All_Tech(PlayerPtr)&&PlayerPtr->Power>=1000000);
   if(root=="SCG72EA")Check("PATSUX retains laser Orcas",AircraftTypeClass::As_Reference(AIRCRAFT_ORCA).Primary==WEAPON_OBELISK_LASER);
   else Check("ordinary missions retain standard Orcas",AircraftTypeClass::As_Reference(AIRCRAFT_ORCA).Primary==WEAPON_DRAGON);

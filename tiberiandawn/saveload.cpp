@@ -503,8 +503,8 @@ bool Load_Game(const char* file_name)
 
     Fixup_Scenario();
     Apply_Campaign_Unlimited_Power(PlayerPtr);
-    // Existing frame-zero mission starts inherit the current opening balance.
-    if (Frame == 0) Apply_Campaign_Starting_Credits();
+    // Legacy frame-zero starts may contain the former fixed 50,000 balance.
+    if (Frame == 0) Restore_Campaign_Starting_Credits();
 
     ScenarioInit = 0;
     Campaign_Enemies_Apply();
