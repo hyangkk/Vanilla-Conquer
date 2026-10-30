@@ -114,6 +114,7 @@
 #include "function.h"
 #include "campaignbike.h"
 #include "campaigndefense.h"
+#include "campaignrepair.h"
 
 /***************************************************************************
 **	Cloaking control values.
@@ -1921,6 +1922,8 @@ void TechnoClass::AI(void)
     CargoClass::AI();
     RadioClass::AI();
     DoorClass::AI();
+    if(What_Am_I()==RTTI_UNIT)Campaign_Bike_Health_Apply(static_cast<UnitClass*>(this));
+    Campaign_Auto_Repair(this);
 
     /*
     ** Handle decision to re-cloak here. Process the cloaking/decloaking operation.
@@ -3057,6 +3060,7 @@ bool TechnoClass::Captured(HouseClass* newowner)
         */
         House = newowner;
         IsOwnedByPlayer = (House == PlayerPtr);
+        if(What_Am_I()==RTTI_UNIT)Campaign_Bike_Health_Apply(static_cast<UnitClass*>(this));
 
         return (true);
     }

@@ -36,6 +36,9 @@
 
 #include "function.h"
 #include "campaignexpansion.h"
+#include "campaignrepair.h"
+#include "campaigntraffic.h"
+#include "campaignformation.h"
 #include "campaignenemies.h"
 #include "campaignwaves.h"
 #include "logic.h"
@@ -187,6 +190,9 @@ void LogicClass::AI(void)
         Campaign_Enemies_Apply();
         Campaign_Waves_AI();
         Campaign_Expansion_AI();
+        Campaign_Auto_Repair_Walls();
+        Campaign_Formation_AI();
+        Campaign_Traffic_AI();
     }
 
     /*

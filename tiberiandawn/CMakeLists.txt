@@ -93,6 +93,9 @@ set(TIBDAWN_SRC
     saveload.cpp
     missionstarts.cpp
     campaignbike.cpp
+    campaignformation.cpp
+    campaigntraffic.cpp
+    campaignrepair.cpp
     campaignexpansion.cpp
     campaignenemies.cpp
     campaignwaves.cpp

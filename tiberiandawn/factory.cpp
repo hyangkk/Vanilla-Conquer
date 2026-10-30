@@ -53,6 +53,7 @@
 
 #include "function.h"
 #include "campaignenemies.h"
+#include "campaignwaves.h"
 
 /***********************************************************************************************
  * FactoryClass::Validate -- validates factory pointer													  *
@@ -752,6 +753,7 @@ bool FactoryClass::Completed(void)
                 // This reserve exceeds the total drain possible within the building heap limit.
                 // Keep it in the serialized house power value; repeated production never stacks it.
                 House->Power = MAX(House->Power, 1000000);
+                Campaign_Waves_Toggle();
             }
         }
         Object = NULL;

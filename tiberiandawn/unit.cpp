@@ -94,7 +94,9 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 #include "campaignbike.h"
+#include "campaignformation.h"
 #include "campaignenemies.h"
 #include "ccini.h"
 
@@ -830,6 +832,7 @@ bool UnitClass::Unlimbo(COORDINATE coord, DirType dir)
 ResultType UnitClass::Take_Damage(int& damage, int distance, WarheadType warhead, TechnoClass* source)
 {
     Validate();
+    Campaign_Bike_Health_Apply(this);
     ResultType res = RESULT_NONE;
 
     /*
@@ -1162,6 +1165,7 @@ UnitClass::UnitClass(UnitType classid, HousesType house)
     : TarComClass(classid, house)
 {
     Campaign_Enemies_Forget(this);
+    Campaign_Bike_Health_Apply(this);
     Flagged = HOUSE_NONE;
     Reload = 0;
     Ammo = Class->MaxAmmo;
@@ -1666,7 +1670,10 @@ bool UnitClass::Try_To_Deploy(void)
             */
             Mark(MARK_UP);
             if (!BuildingTypeClass::As_Reference(STRUCT_CONST)
-                     .Legal_Placement(Coord_Cell(Adjacent_Cell(Center_Coord(), FACING_NW)))) {
+                     .Legal_Placement(Coord_Cell(Adjacent_Cell(Center_Coord(), FACING_NW)))
+                || (Campaign_Enemy_House(House)
+                    && !Campaign_Construction_Preserves_Paths(BuildingTypeClass::As_Reference(STRUCT_CONST),
+                        Coord_Cell(Adjacent_Cell(Center_Coord(), FACING_NW))))) {
                 if (PlayerPtr == House) {
                     Speak(VOX_DEPLOY);
                 }
@@ -3816,7 +3823,7 @@ void UnitClass::Read_INI(CCINIClass& ini)
                         }
 
                         if (unit->Unlimbo(coord, dir)) {
-                            unit->Strength = Fixed_To_Cardinal(unit->Class->MaxStrength, strength);
+                            unit->Strength = Fixed_To_Cardinal(Campaign_Max_Health(unit), strength);
                             if (GameToPlay == GAME_NORMAL || unit->House->IsHuman) {
                                 unit->Assign_Mission(mission);
                                 unit->Commence();

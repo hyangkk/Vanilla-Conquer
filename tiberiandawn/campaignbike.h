@@ -5,6 +5,8 @@ class UnitClass;
 class FileClass;
 bool Campaign_Bike_Active(TechnoClass const* object);
 void Campaign_Bike_AI(UnitClass* bike);
+void Campaign_Bike_Health_Apply(UnitClass* bike);
+void Campaign_Bike_Health_Apply_All();
 void Campaign_Bike_Forget(TARGET id);
 void Campaign_Bike_Reset();
 bool Campaign_Bike_Save(FileClass& file);

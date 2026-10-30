@@ -4,6 +4,8 @@
 #include "campaignenemies.h"
 #include "campaignwaves.h"
 #include "campaignbike.h"
+#include "campaigntraffic.h"
+#include "campaignformation.h"
 #include <limits>
 #include <cstdint>
 #include <cstring>
@@ -34,6 +36,8 @@ void SyncOrders()
         auto extra = Foot(entry.second.extra);
         if (!original || !extra || original->IsInLimbo || extra->IsInLimbo
             || original->House != extra->House) continue;
+        if(original->SuspendedMission!=MISSION_NONE||extra->SuspendedMission!=MISSION_NONE
+            ||Campaign_Formation_Holding(original)||Campaign_Formation_Holding(extra))continue;
         auto& last = entry.second;
         if (original->Mission != last.mission) {
             extra->Assign_Mission(original->Mission); extra->Commence(); last.mission=original->Mission;
@@ -91,13 +95,14 @@ bool Duplicate(FootClass* original)
     extra->Assign_Destination(original->NavCom);
     processed.insert(extra->As_Target());
     companions.emplace(original->As_Target(),Companion{extra->As_Target(), original->TarCom, original->NavCom, original->Mission});
+    if(Campaign_Formation_Holding(original))Campaign_Formation_Recruit(extra,true);
     return true;
 }
 }
-void Campaign_Enemies_Reset() { processed.clear(); companions.clear();pending.clear();Campaign_Bike_Reset(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
+void Campaign_Enemies_Reset() { Campaign_Traffic_Reset();Campaign_Formation_Reset();processed.clear(); companions.clear();pending.clear();Campaign_Bike_Reset(); Campaign_Waves_Reset(); Campaign_SAM_Health_Reset(); Campaign_SAM_Chain_Reset(); }
 void Campaign_Enemies_Mark_Extra(const TechnoClass* object) { processed.insert(object->As_Target()); }
 void Campaign_Enemies_Forget(const TechnoClass* object) {
-    TARGET id=object->As_Target(); processed.erase(id); companions.erase(id);pending.erase(id);Campaign_Bike_Forget(id);
+    TARGET id=object->As_Target(); Campaign_Traffic_Forget(id);Campaign_Formation_Forget(id);processed.erase(id); companions.erase(id);pending.erase(id);Campaign_Bike_Forget(id);
     for (auto it=companions.begin(); it!=companions.end();) {
         if (it->second.extra==id) it=companions.erase(it); else ++it;
     }
@@ -146,7 +151,7 @@ bool Campaign_Enemies_Save(FileClass& file)
     }
     count=pending.size();if(file.Write(&count,sizeof(count))!=sizeof(count)) return false;
     for(auto entry:pending){std::uint32_t data[2]={std::uint32_t(entry.first),entry.second};if(file.Write(data,sizeof(data))!=sizeof(data))return false;}
-    return Campaign_Waves_Save(file) && Campaign_Bike_Save(file);
+    return Campaign_Waves_Save(file) && Campaign_Bike_Save(file) && Campaign_Formation_Save(file);
 }
 bool Campaign_Enemies_Load(FileClass& file)
 {
@@ -176,7 +181,7 @@ bool Campaign_Enemies_Load(FileClass& file)
         for(unsigned i=0;i<count;++i){std::uint32_t data[2];if(file.Read(data,sizeof(data))!=sizeof(data)||data[1]<1||data[1]>2||pending.count(data[0])
             ||(!Is_Target_Unit(data[0])&&!Is_Target_Infantry(data[0])&&!Is_Target_Aircraft(data[0])))return false;pending[data[0]]=data[1];}
     }
-    return Campaign_Waves_Load(file) && Campaign_Bike_Load(file);
+    return Campaign_Waves_Load(file) && Campaign_Bike_Load(file) && Campaign_Formation_Load(file);
 }
 
 bool Campaign_Enemy_House(HouseClass const* house)

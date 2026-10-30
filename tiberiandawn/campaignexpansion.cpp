@@ -3,6 +3,7 @@
 #include "function.h"
 #include "campaignenemies.h"
 #include "campaignexpansion.h"
+#include "campaignformation.h"
 #include <algorithm>
 #include <queue>
 #include <vector>
@@ -63,7 +64,7 @@ CELL BuildingSite(HouseClass const* h,BuildingTypeClass const& type,BuildingClas
 {
     auto bases=Bases(h);if(bases.empty())return 0;
     auto enemy=Opponent(h);auto resources=type.Type==STRUCT_REFINERY?Resources():std::vector<CELL>();
-    CELL best=0;long bestscore=std::numeric_limits<long>::min();
+    std::vector<std::pair<long,CELL>> candidates;
     // At most one map sweep per completed building, not per simulation tick.
     for(int y=Map.MapCellY;y<Map.MapCellY+Map.MapCellHeight;++y)for(int x=Map.MapCellX;x<Map.MapCellX+Map.MapCellWidth;++x){
         CELL c=XY_Cell(x,y);if(!Space(type,c,bases))continue;
@@ -75,9 +76,11 @@ CELL BuildingSite(HouseClass const* h,BuildingTypeClass const& type,BuildingClas
             int tib=100000;for(CELL t:resources)tib=std::min(tib,CellDistance2(c,t));score=-8*tib-nearest;
         }else score=-ABS(nearest-25); // Grow with room around each facility.
         if(producer)score-=CellDistance2(c,Coord_Cell(producer->Center_Coord()))/4;
-        if(score>bestscore){bestscore=score;best=c;}
+        candidates.emplace_back(score,c);
     }
-    return best;
+    std::sort(candidates.begin(),candidates.end(),[](std::pair<long,CELL> a,std::pair<long,CELL> b){return a.first!=b.first?a.first>b.first:a.second<b.second;});
+    for(auto candidate:candidates)if(Campaign_Construction_Preserves_Paths(type,candidate.second))return candidate.second;
+    return 0;
 }
 void Dispatch(FootClass* f)
 {
@@ -85,14 +88,14 @@ void Dispatch(FootClass* f)
     if(f->What_Am_I()==RTTI_UNIT){auto u=static_cast<UnitClass*>(f);if(u->Class->IsToHarvest){u->Assign_Mission(MISSION_HARVEST);u->Commence();return;}if(*u==UNIT_MCV)return;}
     if(f->Techno_Type_Class()->Primary==WEAPON_NONE||f->Techno_Type_Class()->IsTransporter)return;
     auto target=Opponent(f->House);if(!target)return;
-    f->Assign_Mission(MISSION_HUNT);f->Commence();f->Assign_Target(target->As_Target());f->Assign_Destination(target->As_Target());
+    Campaign_Formation_Recruit(f);
 }
 int Count(std::vector<BuildingClass*> const& bases,StructType t){int n=0;for(auto b:bases)if(b->Class->Type==t)++n;return n;}
 CELL ExpansionSite(UnitClass* mcv)
 {
     auto bases=Bases(mcv->House);auto tib=Resources();auto target=Opponent(mcv->House);
     std::vector<unsigned char> visited(MAP_CELL_TOTAL,0);std::queue<CELL> queue;CELL start=Coord_Cell(mcv->Coord);queue.push(start);visited[start]=1;
-    CELL best=0;long bestscore=std::numeric_limits<long>::min();
+    std::vector<std::pair<long,CELL>> candidates;
     auto const& yard=BuildingTypeClass::As_Reference(STRUCT_CONST);
     // Flood only traversable ground, so a distant site across water/cliffs is never selected.
     while(!queue.empty()){
@@ -103,7 +106,7 @@ CELL ExpansionSite(UnitClass* mcv)
                 int nearTib=1000;for(CELL t:tib)nearTib=std::min(nearTib,CellDistance2(c,t));
                 long score=-CellDistance2(start,c)-2*nearTib;
                 if(target)score-=CellDistance2(c,Coord_Cell(target->Coord))/3;
-                if(score>bestscore){bestscore=score;best=c;}
+                candidates.emplace_back(score,c);
             }
         }
         for(FacingType face=FACING_N;face<FACING_COUNT;face++){
@@ -116,7 +119,11 @@ CELL ExpansionSite(UnitClass* mcv)
             visited[next]=1;queue.push(next);
         }
     }
-    return best;
+    // Validate the most promising sites first, instead of flooding a local route
+    // graph separately for every reachable map cell.
+    std::stable_sort(candidates.begin(),candidates.end(),[](std::pair<long,CELL> a,std::pair<long,CELL> b){return a.first>b.first;});
+    for(auto candidate:candidates){CELL c=candidate.second;CELL top=XY_Cell(Cell_X(c)-1,Cell_Y(c)-1);if(Campaign_Construction_Preserves_Paths(yard,top))return c;}
+    return 0;
 }
 void Expand(UnitClass* mcv)
 {
@@ -197,6 +204,6 @@ void Campaign_Expansion_AI()
 }
 void Campaign_Expansion_Resources()
 {
-    // Four unchanged native growth/spread steps per campaign tick. Do not also multiply yield/tries.
-    int steps=GameToPlay==GAME_NORMAL?4:1;for(int i=0;i<steps;++i)Map.Logic();
+    // Five times the previous four-step campaign setting. Native growth/spread rules stay intact.
+    int steps=GameToPlay==GAME_NORMAL?20:1;for(int i=0;i<steps;++i)Map.Logic();
 }

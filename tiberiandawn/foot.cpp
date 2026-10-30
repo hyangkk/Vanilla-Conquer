@@ -74,6 +74,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntraffic.h"
 #include "common/irandom.h"
 
 /***********************************************************************************************
@@ -1674,6 +1675,7 @@ z * FootClass::Assign_Destination -- Assigns specified destination to NavCom.   
  *=============================================================================================*/
 void FootClass::Assign_Destination(TARGET target)
 {
+    Campaign_Traffic_Order(this,target);
     NavCom = target;
 }
 

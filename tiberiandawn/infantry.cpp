@@ -79,6 +79,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntraffic.h"
 #include "campaignenemies.h"
 #include "ccini.h"
 
@@ -1350,11 +1351,11 @@ void InfantryClass::AI(void)
                     }
                     if (!Basic_Path()) {
                         // Mono_Printf("Infantry Basic_Path is failing.\n");Get_Key();
-                        if (Distance(NavCom) < 0x0280 && !IsTethered) {
+                        if (Distance(NavCom) < 0x0280 && !IsTethered && !Campaign_Traffic_Wait(this)) {
                             Assign_Destination(TARGET_NONE);
                         } else {
-                            if (TryTryAgain) {
-                                TryTryAgain--;
+                            if (TryTryAgain || Campaign_Traffic_Wait(this)) {
+                                if(TryTryAgain) TryTryAgain--;
                             } else {
                                 if (IsNewNavCom)
                                     Sound_Effect(VOC_SCOLD);
@@ -1387,7 +1388,7 @@ void InfantryClass::AI(void)
                 if (Can_Enter_Cell(acell) != MOVE_OK) {
 
                     if ((Mission == MISSION_MOVE || Mission == MISSION_ENTER) && !IsTethered && House->IsHuman
-                        && Distance(NavCom) < 0x0200) {
+                        && Distance(NavCom) < 0x0200 && !Campaign_Traffic_Wait(this)) {
                         Assign_Destination(TARGET_NONE);
                     }
 

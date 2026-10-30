@@ -44,10 +44,20 @@ void Campaign_SAM_Volley_Reset();
 void Campaign_SAM_Volley_Forget(BuildingClass* sam);
 bool Campaign_SAM_Volley_Save(FileClass& file);
 bool Campaign_SAM_Volley_Load(FileClass& file);
+inline bool Campaign_Player_Repair(TechnoClass const* object)
+{
+    return GameToPlay==GAME_NORMAL && object && object->House && object->House==PlayerPtr && object->House->IsHuman;
+}
+inline bool Campaign_Player_Bike(TechnoClass const* object)
+{
+    return Campaign_Player_Repair(object) && object->What_Am_I()==RTTI_UNIT
+        && static_cast<UnitClass const*>(object)->Class->Type==UNIT_BIKE;
+}
 inline int Campaign_Max_Health(ObjectClass const* object)
 {
     int maximum=object->Class_Of().MaxStrength;
     if (object->What_Am_I()==RTTI_BUILDING && Campaign_SAM_Ground(static_cast<BuildingClass const*>(object))) maximum*=5;
+    if (object->What_Am_I()==RTTI_UNIT && Campaign_Player_Bike(static_cast<UnitClass const*>(object))) maximum*=2;
     return maximum;
 }
 void Campaign_SAM_Health_Reset();

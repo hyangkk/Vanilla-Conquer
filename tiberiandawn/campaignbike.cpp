@@ -1,12 +1,15 @@
 #include "function.h"
 #include "campaignbike.h"
+#include "campaigndefense.h"
+#include <array>
 #include <map>
 #include <vector>
 #include <cstdint>
 #include <cstring>
 namespace {
 std::map<TARGET,int> nextIon;
-const char magic[8]={'C','N','C','B','I','K','0','1'};
+std::array<unsigned char,UNIT_MAX> healthBoost{};
+const char magic[8]={'C','N','C','B','I','K','0','2'};
 }
 bool Campaign_Bike_Active(TechnoClass const* object)
 {
@@ -14,8 +17,20 @@ bool Campaign_Bike_Active(TechnoClass const* object)
         && object->What_Am_I()==RTTI_UNIT && static_cast<UnitClass const*>(object)->Class->Type==UNIT_BIKE
         && object->House && object->House==PlayerPtr && object->House->IsHuman;
 }
-void Campaign_Bike_Reset(){nextIon.clear();}
-void Campaign_Bike_Forget(TARGET id){nextIon.erase(id);}
+void Campaign_Bike_Reset(){nextIon.clear();healthBoost.fill(0);}
+void Campaign_Bike_Forget(TARGET id){nextIon.erase(id);if(Is_Target_Unit(id)&&Target_Value(id)<UNIT_MAX)healthBoost[Target_Value(id)]=0;}
+void Campaign_Bike_Health_Apply(UnitClass* bike)
+{
+    if(!bike||bike->Class->Type!=UNIT_BIKE)return;
+    int id=Units.ID(bike);if(id<0||id>=UNIT_MAX)return;
+    bool desired=Campaign_Player_Bike(bike);
+    if(desired!=bool(healthBoost[id])){
+        if(desired)bike->Strength=MIN(int(bike->Strength)*2,int(bike->Class->MaxStrength)*2);
+        else if(bike->Strength>0)bike->Strength=MAX(1,(bike->Strength+1)/2);
+        healthBoost[id]=desired;
+    }
+}
+void Campaign_Bike_Health_Apply_All(){for(int i=0;i<Units.Count();++i)Campaign_Bike_Health_Apply(Units.Ptr(i));}
 void Campaign_Bike_AI(UnitClass* bike)
 {
     if(!GameActive || ScenarioInit || !Campaign_Bike_Active(bike) || PlayerWins || PlayerLoses) return;
@@ -53,13 +68,16 @@ bool Campaign_Bike_Save(FileClass& file)
     std::uint32_t count=nextIon.size();
     if(file.Write(magic,8)!=8||file.Write(&count,sizeof(count))!=sizeof(count))return false;
     for(auto e:nextIon){std::uint32_t data[2]={std::uint32_t(e.first),std::uint32_t(Bound(e.second-Frame,0,TICKS_PER_SECOND))};if(file.Write(data,sizeof(data))!=sizeof(data))return false;}
-    return true;
+    return file.Write(healthBoost.data(),healthBoost.size())==int(healthBoost.size());
 }
 bool Campaign_Bike_Load(FileClass& file)
 {
     Campaign_Bike_Reset();char header[8];int n=file.Read(header,8);if(!n)return true;
-    if(n!=8||std::memcmp(header,magic,8))return false;
+    const char oldMagic[8]={'C','N','C','B','I','K','0','1'};
+    bool legacy=n==8&&!std::memcmp(header,oldMagic,8);
+    if(n!=8||(!legacy&&std::memcmp(header,magic,8)))return false;
     std::uint32_t count;if(file.Read(&count,sizeof(count))!=sizeof(count)||count>UNIT_MAX)return false;
     for(unsigned i=0;i<count;++i){std::uint32_t data[2];if(file.Read(data,sizeof(data))!=sizeof(data)||!Is_Target_Unit(data[0])||Target_Value(data[0])>=UNIT_MAX||data[1]>TICKS_PER_SECOND||nextIon.count(data[0]))return false;nextIon[data[0]]=Frame+data[1];}
+    if(!legacy){if(file.Read(healthBoost.data(),healthBoost.size())!=int(healthBoost.size()))return false;for(auto flag:healthBoost)if(flag>1)return false;}
     return true;
 }

@@ -1106,7 +1106,7 @@ void BuildingClass::AI(void)
     /*
     **	Handle any repair process that may be going on.
     */
-    if (Campaign_SAM_Ground(this) && Strength>0 && Strength<Campaign_Max_Health(this)
+    if (Campaign_Player_Repair(this) && Strength>0 && Strength<Campaign_Max_Health(this)
         && Mission!=MISSION_CONSTRUCTION && Mission!=MISSION_DECONSTRUCTION && !IsGoingToBlow)
         IsRepairing=true;
     if (IsRepairing) {

@@ -20,16 +20,17 @@ Coverage:
   preserves identity and money rather than treating a wait result as completion.
 - Nod airstrip output keeps its actual factory product identity, preserving the
   previously implemented exactly-three-for-one-cost quota.
-- Newly released enemy combat units immediately receive attack/movement orders;
+- Newly released enemy combat units immediately receive squad gathering orders;
   harvesters harvest, MCVs receive separately chosen expansion orders.
 - Wealthy AI buys MCVs as its target yard count rises every five game minutes to
   eight (tripled MCV output can overshoot that target). Reachable ground is flood
   searched; the vehicle actually drives and deploys into a new yard. Native NavCom
   preserves its route across save/load. Scripted team/trigger MCVs are preserved.
-- Four native resource growth/spread steps per campaign tick exactly match four
+- Twenty native resource growth/spread steps per campaign tick exactly match twenty
   ordinary steps using the same saved map state and explicitly reset simulation RNG.
   Existing growth/spread options remain effective; skirmish uses one native step.
-- No object layouts or save footers change. Existing saves use the new logic on load.
+- No game object layouts change. Optional versioned formation state follows existing
+  save footers; legacy EOF remains accepted. Existing saves use the new logic on load.
 
 Regression controls temporarily restore a two-cell public proximity test, ordinary
 resource rate and the sidebar's old boolean success test. The diagnostic must fail
