@@ -88,3 +88,8 @@ add_executable(test_campaigntech campaigntech.cpp)
 target_include_directories(test_campaigntech PRIVATE ..)
 add_test(NAME campaigntech COMMAND test_campaigntech)
 add_dependencies(tests test_campaigntech)
+
+add_executable(test_savedescription savedescription.cpp)
+target_include_directories(test_savedescription PRIVATE ..)
+add_test(NAME savedescription COMMAND test_savedescription)
+add_dependencies(tests test_savedescription)

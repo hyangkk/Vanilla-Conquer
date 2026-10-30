@@ -41,6 +41,7 @@
 
 #include "function.h"
 #include "loaddlg.h"
+#include "savedescription.h"
 #include "common/file.h"
 #include "common/framelimit.h"
 #include "common/paths.h"
@@ -481,27 +482,11 @@ int LoadOptionsClass::Process(void)
                 ** it is, set the edit buffer to empty.
                 */
                 if (game_idx != 0) {
-                    strcpy(game_descr, listbtn.Get_Item(game_idx));
-
-                    /*
-                    ** Strip any leading parenthesis off of the description.
-                    */
-                    if (game_descr[0] == '(') {
-                        char* ptr = strchr(game_descr, ')');
-                        if (ptr != NULL) {
-                            char* dst = game_descr;
-                            const char* src = ptr + 1; // Skip ')'
-
-                            // Don't use strcpy, as the memory regions overlap.
-                            while ((*dst++ = *src++) != '\0')
-                                ; // Copy string
-                            strtrim(game_descr);
-                        }
-                    }
+                    SaveDescription::Copy(game_descr, sizeof(game_descr), listbtn.Get_Item(game_idx));
                 } else {
                     game_descr[0] = 0;
                 }
-                editbtn.Set_Text(game_descr, 40);
+                editbtn.Set_Text(game_descr, sizeof(game_descr));
             }
             break;
 
