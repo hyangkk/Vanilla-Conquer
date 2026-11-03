@@ -14,30 +14,30 @@ static FootClass* Spawn(RTTIType kind,HousesType owner=HOUSE_BAD,int variant=0,C
     o->Assign_Mission(MISSION_SLEEP);o->Commence();o->IsDiscoveredByPlayer=true;
     Campaign_Enemies_Mark_Extra(o);return o;
 }
-static std::vector<TARGET> Group(RTTIType kind,int count=10,HousesType owner=HOUSE_BAD) {
+static std::vector<TARGET> Group(RTTIType kind,int count=5,HousesType owner=HOUSE_BAD) {
     std::vector<TARGET> ids;for(int i=0;i<count;++i)ids.push_back(Spawn(kind,owner)->As_Target());return ids;
 }
 static FootClass* Fused(const std::vector<TARGET>& ids) {
     FootClass* result=nullptr;int alive=0;for(auto id:ids)if(auto o=As_Techno(id)){++alive;result=static_cast<FootClass*>(o);}
-    Check("ten actors leave exactly one survivor",alive==1);return alive==1?result:nullptr;
+    Check("five actors leave exactly one survivor",alive==1);return alive==1?result:nullptr;
 }
 static void Evolution(const std::string& dir,RTTIType kind) {
-    Reset(dir);auto ids=Group(kind,9);EnemyFusion::AI();int count=0;for(auto id:ids)if(As_Techno(id))++count;
-    Check("nine same-tier actors cannot fuse",count==9&&EnemyFusion::Tier(As_Techno(ids[0]))==0);
+    Reset(dir);auto ids=Group(kind,4);EnemyFusion::AI();int count=0;for(auto id:ids)if(As_Techno(id))++count;
+    Check("four same-tier actors cannot fuse",count==4&&EnemyFusion::Tier(As_Techno(ids[0]))==0);
     ids.push_back(Spawn(kind)->As_Target());auto anchor=As_Techno(ids[0]);int base=anchor->Class_Of().MaxStrength;
     auto house=anchor->House;unsigned lost=house->UnitsLost,killed=PlayerPtr->UnitsKilled[HOUSE_BAD];int before=kind==RTTI_UNIT?Units.Count():kind==RTTI_INFANTRY?Infantry.Count():Aircraft.Count();
     EnemyFusion::AI();auto evolved=Fused(ids);if(!evolved)return;
-    Check("first evolution has 1.5x size with twofold health and power",EnemyFusion::Tier(evolved)==1&&EnemyFusion::Multiplier(evolved)==2&&EnemyFusion::Visual_Scale(evolved)==384&&Campaign_Max_Health(evolved)==base*2&&evolved->Strength==base*2&&EnemyFusion::Firepower(evolved,30)==60);
+    Check("first evolution has 1.3x size with twofold health and power",EnemyFusion::Tier(evolved)==1&&EnemyFusion::Multiplier(evolved)==2&&EnemyFusion::Visual_Scale(evolved)==333&&Campaign_Max_Health(evolved)==base*2&&evolved->Strength==base*2&&EnemyFusion::Firepower(evolved,30)==60);
     Check("fusion preserves native class owner and mission",&evolved->Class_Of()==&anchor->Class_Of()&&evolved->House==house&&evolved->Mission==MISSION_SLEEP);
-    Check("fusion releases nine heap slots without combat losses",(kind==RTTI_UNIT?Units.Count():kind==RTTI_INFANTRY?Infantry.Count():Aircraft.Count())==before-9&&house->UnitsLost==lost&&PlayerPtr->UnitsKilled[HOUSE_BAD]==killed);
+    Check("fusion releases four heap slots without combat losses",(kind==RTTI_UNIT?Units.Count():kind==RTTI_INFANTRY?Infantry.Count():Aircraft.Count())==before-4&&house->UnitsLost==lost&&PlayerPtr->UnitsKilled[HOUSE_BAD]==killed);
     Check("full upgraded health uses the correct health bar ratio",evolved->Health_Ratio()==0x100);
     auto id=evolved->As_Target();Check("save upgraded actor",Save_Game((dir+"/fusion.sav").c_str(),"Fusion stage one"));
     Check("load upgraded actor",Load_Game((dir+"/fusion.sav").c_str()));evolved=static_cast<FootClass*>(As_Techno(id));
     Check("save reload preserves tier health and size without multiplying again",evolved&&EnemyFusion::Tier(evolved)==1&&evolved->Strength==base*2&&Campaign_Max_Health(evolved)==base*2);
     std::vector<TARGET> tierOne{id};
-    for(int n=0;n<9;++n){auto more=Group(kind);EnemyFusion::AI();auto one=Fused(more);if(one)tierOne.push_back(one->As_Target());}
+    for(int n=0;n<4;++n){auto more=Group(kind);EnemyFusion::AI();auto one=Fused(more);if(one)tierOne.push_back(one->As_Target());}
     EnemyFusion::AI();auto twice=Fused(tierOne);if(!twice)return;
-    Check("second evolution has 2.25x size with fourfold health and power",EnemyFusion::Tier(twice)==2&&EnemyFusion::Multiplier(twice)==4&&EnemyFusion::Visual_Scale(twice)==576&&Campaign_Max_Health(twice)==base*4&&twice->Strength==base*4&&EnemyFusion::Firepower(twice,30)==120);
+    Check("second evolution has 1.69x size with fourfold health and power",EnemyFusion::Tier(twice)==2&&EnemyFusion::Multiplier(twice)==4&&EnemyFusion::Visual_Scale(twice)==433&&Campaign_Max_Health(twice)==base*4&&twice->Strength==base*4&&EnemyFusion::Firepower(twice,30)==120);
     id=twice->As_Target();Check("save second evolution",Save_Game((dir+"/fusion-two.sav").c_str(),"Fusion stage two"));
     Check("reload second evolution",Load_Game((dir+"/fusion-two.sav").c_str()));
     Check("recursive tier survives second save",As_Techno(id)&&EnemyFusion::Tier(As_Techno(id))==2);
@@ -47,23 +47,23 @@ static void Evolution(const std::string& dir,RTTIType kind) {
 static void ScopeTests(const std::string& dir) {
     Reset(dir);auto own=Group(RTTI_UNIT,10,HOUSE_GOOD);auto neutral=Group(RTTI_INFANTRY,10,HOUSE_NEUTRAL);
     EnemyFusion::AI();Check("player and neutral actors never fuse",As_Techno(own[9])&&As_Techno(neutral[9])&&EnemyFusion::Tier(As_Techno(own[0]))==0);
-    Reset(dir);auto ids=Group(RTTI_UNIT,9);auto other=Spawn(RTTI_UNIT,HOUSE_BAD,1);EnemyFusion::AI();
-    Check("different native unit types never mix",As_Techno(ids[9-1])&&EnemyFusion::Tier(other)==0);
-    Reset(dir);ids=Group(RTTI_UNIT);GameToPlay=GAME_SKIRMISH;EnemyFusion::AI();Check("skirmish is unchanged",As_Techno(ids[9])&&EnemyFusion::Tier(As_Techno(ids[0]))==0);GameToPlay=GAME_NORMAL;
-    Reset(dir);ids=Group(RTTI_UNIT,9);auto distant=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(Center())+20,Cell_Y(Center())));EnemyFusion::AI();
-    Check("distant tenth actor does not trigger global fusion",As_Techno(ids[8])&&EnemyFusion::Tier(distant)==0);
+    Reset(dir);auto ids=Group(RTTI_UNIT,4);auto other=Spawn(RTTI_UNIT,HOUSE_BAD,1);EnemyFusion::AI();
+    Check("different native unit types never mix",As_Techno(ids.back())&&EnemyFusion::Tier(other)==0);
+    Reset(dir);ids=Group(RTTI_UNIT);GameToPlay=GAME_SKIRMISH;EnemyFusion::AI();Check("skirmish is unchanged",As_Techno(ids.back())&&EnemyFusion::Tier(As_Techno(ids[0]))==0);GameToPlay=GAME_NORMAL;
+    Reset(dir);ids=Group(RTTI_UNIT,4);auto distant=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(Center())+20,Cell_Y(Center())));EnemyFusion::AI();
+    Check("distant fifth actor does not trigger global fusion",As_Techno(ids.back())&&EnemyFusion::Tier(distant)==0);
     Reset(dir);ids=Group(RTTI_UNIT);auto tether=As_Techno(ids.back());tether->IsTethered=true;EnemyFusion::AI();
     Check("factory tether defers fusion safely",As_Techno(ids.back())&&EnemyFusion::Tier(tether)==0);tether->IsTethered=false;EnemyFusion::AI();Fused(ids);
     Reset(dir);ids=Group(RTTI_UNIT);for(auto id:ids)As_Techno(id)->Strength/=2;EnemyFusion::AI();auto o=Fused(ids);
     Check("fusion averages damage instead of fully healing",o&&o->Strength==o->Class_Of().MaxStrength&&o->Health_Ratio()==0x80);
     Reset(dir);ids=Group(RTTI_UNIT);auto bad=HouseClass::As_Pointer(HOUSE_BAD);bad->Make_Ally(HOUSE_GOOD);PlayerPtr->Make_Ally(HOUSE_BAD);EnemyFusion::AI();
-    Check("allied AI actors are excluded",As_Techno(ids[9])&&EnemyFusion::Tier(As_Techno(ids[0]))==0);bad->Make_Enemy(HOUSE_GOOD);PlayerPtr->Make_Enemy(HOUSE_BAD);
+    Check("allied AI actors are excluded",As_Techno(ids.back())&&EnemyFusion::Tier(As_Techno(ids[0]))==0);bad->Make_Enemy(HOUSE_GOOD);PlayerPtr->Make_Enemy(HOUSE_BAD);
 }
 static void NativeTickAndMixedTier(const std::string& dir) {
     Reset(dir);auto ids=Group(RTTI_UNIT);Frame=TICKS_PER_SECOND;Logic.AI();auto one=Fused(ids);
     Check("normal Logic AI invokes fusion without a probe-only shortcut",one&&EnemyFusion::Tier(one)==1);
-    auto lower=Group(RTTI_UNIT,9);EnemyFusion::AI();
-    Check("one upgraded plus nine base actors cannot mix tiers",As_Techno(lower.back())&&one&&EnemyFusion::Tier(one)==1);
+    auto lower=Group(RTTI_UNIT,4);EnemyFusion::AI();
+    Check("one upgraded plus four base actors cannot mix tiers",As_Techno(lower.back())&&one&&EnemyFusion::Tier(one)==1);
     if(one){one->Stun();delete one;}Reset(dir);ids=Group(RTTI_UNIT);
     std::vector<CELL> occupied;for(auto id:ids)occupied.push_back(Coord_Cell(As_Techno(id)->Coord));
     EnemyFusion::AI();one=Fused(ids);bool free=true;
@@ -86,13 +86,13 @@ static void ShotTest(const std::string& dir) {
 static FootClass* BuildTier(int tier) {
     if(!tier)return Spawn(RTTI_UNIT);
     std::vector<TARGET> ids;
-    for(int i=0;i<10;++i){auto child=BuildTier(tier-1);if(!child)return nullptr;ids.push_back(child->As_Target());}
+    for(int i=0;i<5;++i){auto child=BuildTier(tier-1);if(!child)return nullptr;ids.push_back(child->As_Target());}
     EnemyFusion::AI();return Fused(ids);
 }
 static void CountsAndRadius(const std::string& dir) {
     Reset(dir);Check("initial empty field has zero unit counts",EnemyFusion::Count_Units()==EnemyFusion::Counts{});
-    auto ids=Group(RTTI_UNIT,9);auto counts=EnemyFusion::Count_Units();Check("normal deployed actors counted individually",counts[0]==9&&counts[1]==0);
-    auto tenth=Spawn(RTTI_UNIT);ids.push_back(tenth->As_Target());EnemyFusion::AI();auto one=Fused(ids);
+    auto ids=Group(RTTI_UNIT,4);auto counts=EnemyFusion::Count_Units();Check("normal deployed actors counted individually",counts[0]==4&&counts[1]==0);
+    auto fifth=Spawn(RTTI_UNIT);ids.push_back(fifth->As_Target());EnemyFusion::AI();auto one=Fused(ids);
     counts=EnemyFusion::Count_Units();Check("fusion updates normal and upgraded counts",counts[0]==0&&counts[1]==1);
     auto own=Spawn(RTTI_UNIT,HOUSE_GOOD);auto neutral=Spawn(RTTI_INFANTRY,HOUSE_NEUTRAL);auto air=Spawn(RTTI_AIRCRAFT);auto infantry=Spawn(RTTI_INFANTRY);
     auto building=new BuildingClass(STRUCT_POWER,HOUSE_BAD);Put(building,XY_Cell(Cell_X(Center())-9,Cell_Y(Center())-9));
@@ -100,37 +100,37 @@ static void CountsAndRadius(const std::string& dir) {
     counts=EnemyFusion::Count_Units();Check("counts include field infantry and aircraft but exclude buildings player neutral and limbo production",counts[0]==2&&counts[1]==1);
     air->Limbo();infantry->Strength=0;counts=EnemyFusion::Count_Units();Check("counts immediately exclude limbo and dead actors",counts[0]==0&&counts[1]==1);
     if(one){one->Stun();delete one;}Check("deleting an upgraded actor clears its count",EnemyFusion::Count_Units()[1]==0);
-    Reset(dir);ids=Group(RTTI_UNIT,9);auto c=Center();
+    Reset(dir);ids=Group(RTTI_UNIT,4);auto c=Center();
     // Place all donors to the west of the first anchor so a closer alternative anchor cannot defeat the boundary test.
     for(auto id:ids)As_Unit(id)->Limbo();
     for(unsigned i=0;i<ids.size();++i){auto o=As_Unit(ids[i]);Check("place radius boundary donor",o->Unlimbo(Cell_Coord(XY_Cell(Cell_X(c)-int(i),Cell_Y(c))),DIR_N));}
-    tenth=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(c)+10,Cell_Y(c)));ids.push_back(tenth->As_Target());tenth->Coord=XY_Coord(Coord_X(As_Techno(ids.front())->Coord)+10*ICON_LEPTON_W,Coord_Y(As_Techno(ids.front())->Coord));
-    Check("exact native distance at ten cells",::Distance(tenth->Coord,As_Techno(ids.front())->Coord)==10*ICON_LEPTON_W);
-    EnemyFusion::AI();Check("ten-cell edge includes the tenth actor",EnemyFusion::Tier(As_Techno(ids.front()))==1);
-    Reset(dir);ids=Group(RTTI_UNIT,9);
+    fifth=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(c)+10,Cell_Y(c)));ids.push_back(fifth->As_Target());fifth->Coord=XY_Coord(Coord_X(As_Techno(ids.front())->Coord)+10*ICON_LEPTON_W,Coord_Y(As_Techno(ids.front())->Coord));
+    Check("exact native distance at ten cells",::Distance(fifth->Coord,As_Techno(ids.front())->Coord)==10*ICON_LEPTON_W);
+    EnemyFusion::AI();Check("ten-cell edge includes the fifth actor",EnemyFusion::Tier(As_Techno(ids.front()))==1);
+    Reset(dir);ids=Group(RTTI_UNIT,4);
     for(auto id:ids)As_Unit(id)->Limbo();
     for(unsigned i=0;i<ids.size();++i){auto o=As_Unit(ids[i]);o->Unlimbo(Cell_Coord(XY_Cell(Cell_X(c)-int(i),Cell_Y(c))),DIR_N);}
-    tenth=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(c)+10,Cell_Y(c)));tenth->Coord=XY_Coord(Coord_X(As_Techno(ids.front())->Coord)+10*ICON_LEPTON_W+1,Coord_Y(As_Techno(ids.front())->Coord));
-    Check("exact native distance outside ten cells",::Distance(tenth->Coord,As_Techno(ids.front())->Coord)==10*ICON_LEPTON_W+1);
+    fifth=Spawn(RTTI_UNIT,HOUSE_BAD,0,XY_Cell(Cell_X(c)+10,Cell_Y(c)));fifth->Coord=XY_Coord(Coord_X(As_Techno(ids.front())->Coord)+10*ICON_LEPTON_W+1,Coord_Y(As_Techno(ids.front())->Coord));
+    Check("exact native distance outside ten cells",::Distance(fifth->Coord,As_Techno(ids.front())->Coord)==10*ICON_LEPTON_W+1);
     EnemyFusion::AI();Check("ten cells plus one lepton remains outside fusion range",EnemyFusion::Tier(As_Techno(ids.front()))==0&&As_Techno(ids.back()));
 }
 static void Screen(const std::string& dir) {
-    Reset(dir);auto third=BuildTier(3);auto second=BuildTier(2);auto first=BuildTier(1);auto normal=BuildTier(0);
-    if(!third||!second||!first||!normal)return;
-    Check("third evolution separates 3.375x size from 8x combat stats",EnemyFusion::Tier(third)==3&&EnemyFusion::Visual_Scale(third)==864&&EnemyFusion::Firepower(third,30)==240&&Campaign_Max_Health(third)==third->Class_Of().MaxStrength*8);
-    std::vector<FootClass*> actors{normal,first,second,third};
+    Reset(dir);auto fifth=BuildTier(5);auto fourth=BuildTier(4);auto third=BuildTier(3);auto second=BuildTier(2);auto first=BuildTier(1);auto normal=BuildTier(0);
+    if(!fifth||!fourth||!third||!second||!first||!normal)return;
+    Check("third evolution separates 2.197x size from 8x combat stats",EnemyFusion::Tier(third)==3&&EnemyFusion::Visual_Scale(third)==562&&EnemyFusion::Firepower(third,30)==240&&Campaign_Max_Health(third)==third->Class_Of().MaxStrength*8);
+    std::vector<FootClass*> actors{normal,first,second,third,fourth,fifth};
     for(auto actor:actors)actor->Limbo();auto c=Center();
-    for(unsigned i=0;i<actors.size();++i){auto actor=actors[i];Check("place rendered tier",actor->Unlimbo(Cell_Coord(XY_Cell(Cell_X(c)-6+int(i)*5,Cell_Y(c))),DIR_N));actor->Assign_Mission(MISSION_SLEEP);actor->Commence();}
-    auto counts=EnemyFusion::Count_Units();Check("HUD counts all four rendered stages independently",counts[0]==1&&counts[1]==1&&counts[2]==1&&counts[3]==1);
+    for(unsigned i=0;i<actors.size();++i){auto actor=actors[i];Check("place rendered tier",Put(actor,XY_Cell(Cell_X(c)-7+int(i)*4,Cell_Y(c))));actor->Assign_Mission(MISSION_SLEEP);actor->Commence();}
+    auto counts=EnemyFusion::Count_Units();Check("HUD counts all six rendered stages independently",counts[0]==1&&counts[1]==1&&counts[2]==1&&counts[3]==1&&counts[4]==1&&counts[5]==1);
     auto shape=normal->Class_Of().Get_Image_Data();int sw=Get_Build_Frame_Width(shape),sh=Get_Build_Frame_Height(shape);
     auto built=Build_Frame(shape,0,_ShapeBuffer);auto raw=static_cast<unsigned char*>(Get_Shape_Header_Data(reinterpret_cast<void*>(built)));
-    std::vector<unsigned char> original(raw,raw+sw*sh);int scales[4]={256,384,576,864};
+    std::vector<unsigned char> original(raw,raw+sw*sh);int scales[6]={256,333,433,562,731,951};
     GraphicBufferClass raster(960,600,nullptr,960*600);auto previous=Set_Logic_Page(raster);auto cacheMode=UseBigShapeBuffer;
     for(unsigned tier=0;tier<actors.size();++tier){
         raster.Clear();CC_Draw_Shape(actors[tier],shape,0,150,150,WINDOW_TACTICAL,SHAPE_CENTER|SHAPE_WIN_REL);
         auto bytes=static_cast<unsigned char*>(raster.Get_Buffer());int w=(sw*scales[tier]+128)/256,h=(sh*scales[tier]+128)/256;
         bool exact=true;for(int y=0;y<h;++y)for(int x=0;x<w;++x)if(bytes[(150+WindowList[WINDOW_TACTICAL][WINDOWY]-h/2+y)*960+150+WindowList[WINDOW_TACTICAL][WINDOWX]-w/2+x]!=original[(y*sh/h)*sw+x*sw/w])exact=false;
-        Check("actual raster retains exact original palette pixels at the expected 1.5-power size",exact&&EnemyFusion::Visual_Scale(actors[tier])==scales[tier]);
+        Check("actual raster retains exact original palette pixels at the expected 1.3-power size",exact&&EnemyFusion::Visual_Scale(actors[tier])==scales[tier]);
         Check("sprite enlargement restores native cache mode",UseBigShapeBuffer==cacheMode);
     }
     raster.Clear();EnemyFusion::Draw_Counts();
@@ -150,11 +150,11 @@ static void Screen(const std::string& dir) {
     auto path=dir+"/fusion-hud-gameplay.pcx";Write_PCX_File(const_cast<char*>(path.c_str()),image,GamePalette);CCFileClass capture(path.c_str());Check("capture native gameplay with count HUD",capture.Is_Available()&&capture.Size()>1000);
     Check("save visual validation fixture",Save_Game((dir+"/savegame.090").c_str(),"Enemy fusion stages and counts"));
     auto id=third->As_Target();Check("reload third-tier save and count HUD",Load_Game((dir+"/savegame.090").c_str()));
-    Check("third tier and counts persist with new visual scaling",EnemyFusion::Tier(As_Techno(id))==3&&EnemyFusion::Visual_Scale(As_Techno(id))==864&&EnemyFusion::Count_Units()[3]==1);
+    Check("third tier and counts persist with new visual scaling",EnemyFusion::Tier(As_Techno(id))==3&&EnemyFusion::Visual_Scale(As_Techno(id))==562&&EnemyFusion::Count_Units()[3]==1);
 }
 static void LegacyAndBadFooter(const std::string& dir) {
     Check("previous 2x-size fusion save still loads",Load_Game((dir+"/previous-fusion.sav").c_str()));
-    bool migrated=false;for(int i=0;i<Aircraft.Count();++i)if(EnemyFusion::Tier(Aircraft.Ptr(i))==2)migrated=EnemyFusion::Visual_Scale(Aircraft.Ptr(i))==576&&EnemyFusion::Multiplier(Aircraft.Ptr(i))==4;
+    bool migrated=false;for(int i=0;i<Aircraft.Count();++i)if(EnemyFusion::Tier(Aircraft.Ptr(i))==2)migrated=EnemyFusion::Visual_Scale(Aircraft.Ptr(i))==433&&EnemyFusion::Multiplier(Aircraft.Ptr(i))==4;
     Check("old saved tier changes only its visual size and preserves fourfold power",migrated&&EnemyFusion::Count_Units()[2]==1);
     Check("current user save still loads",Load_Game((dir+"/current-user.sav").c_str()));
     Check("pre-fusion mission saves still load",Load_Game((dir+"/fixture.sav").c_str()));
@@ -162,13 +162,33 @@ static void LegacyAndBadFooter(const std::string& dir) {
     Reset(dir);auto ids=Group(RTTI_UNIT);EnemyFusion::AI();Fused(ids);Check("write corrupt footer fixture",Save_Game((dir+"/invalid.sav").c_str(),"Invalid fusion"));
     {std::ifstream in(dir+"/invalid.sav",std::ios::binary);std::string b((std::istreambuf_iterator<char>(in)),{});auto p=b.rfind("CNCFUS01");Check("optional versioned fusion footer exists",p!=std::string::npos);if(p==std::string::npos)return;std::uint32_t invalid=16;std::memcpy(&b[p+16],&invalid,4);std::ofstream out(dir+"/invalid.sav",std::ios::binary|std::ios::trunc);out.write(b.data(),b.size());}
     Check("out-of-range tier rejects without decoding invalid pointers",!Load_Game((dir+"/invalid.sav").c_str()));
-    {std::ifstream in(dir+"/invalid.sav",std::ios::binary);std::string b((std::istreambuf_iterator<char>(in)),{});auto p=b.rfind("CNCFUS01");std::uint32_t cap=15;std::memcpy(&b[p+16],&cap,4);std::ofstream out(dir+"/bounded.sav",std::ios::binary|std::ios::trunc);out.write(b.data(),b.size());}
+    {std::ifstream in(dir+"/invalid.sav",std::ios::binary);std::string b((std::istreambuf_iterator<char>(in)),{});auto p=b.rfind("CNCFUS01");std::uint32_t cap=5;std::memcpy(&b[p+16],&cap,4);std::ofstream out(dir+"/bounded.sav",std::ios::binary|std::ios::trunc);out.write(b.data(),b.size());}
     Check("highest supported tier loads safely",Load_Game((dir+"/bounded.sav").c_str()));
-    auto capped=As_Techno(ids.front());Check("native short health and firepower saturate instead of overflowing",capped&&Campaign_Max_Health(capped)==32767&&EnemyFusion::Firepower(capped,300)==32767);
+    auto capped=As_Techno(ids.front());Check("fifth-tier maximum health and firepower use thirty-twofold stats",capped&&EnemyFusion::Tier(capped)==5&&Campaign_Max_Health(capped)==capped->Class_Of().MaxStrength*32&&EnemyFusion::Firepower(capped,300)==9600);
 
+    auto oldID=capped->As_Target();capped->Strength=32767;
+    Check("write legacy high-tier health fixture",Save_Game((dir+"/legacy-high.sav").c_str(),"Legacy level fifteen"));
+    {std::ifstream in(dir+"/legacy-high.sav",std::ios::binary);std::string b((std::istreambuf_iterator<char>(in)),{});auto pos=b.rfind("CNCFUS01");std::uint32_t legacy=15;std::memcpy(&b[pos+16],&legacy,4);std::ofstream out(dir+"/legacy-high.sav",std::ios::binary|std::ios::trunc);out.write(b.data(),b.size());}
+    Check("load previous high-tier save without breaking compatibility",Load_Game((dir+"/legacy-high.sav").c_str()));capped=As_Techno(oldID);
+    Check("legacy level fifteen becomes full-health level five",capped&&EnemyFusion::Tier(capped)==5&&capped->Strength==Campaign_Max_Health(capped)&&EnemyFusion::Visual_Scale(capped)==951);
+    Check("save normalized legacy tier",Save_Game((dir+"/normalized.sav").c_str(),"Normalized level five"));
+    Check("reload normalized legacy tier",Load_Game((dir+"/normalized.sav").c_str()));
+    Check("normalization is idempotent",EnemyFusion::Tier(As_Techno(oldID))==5&&As_Techno(oldID)->Strength==Campaign_Max_Health(As_Techno(oldID)));
+    Check("write legacy half-health level-six fixture",Save_Game((dir+"/legacy-six.sav").c_str(),"Legacy level six half health"));
+    {std::ifstream in(dir+"/legacy-six.sav",std::ios::binary);std::string b((std::istreambuf_iterator<char>(in)),{});auto pos=b.rfind("CNCFUS01");std::uint32_t legacy=6;std::memcpy(&b[pos+16],&legacy,4);std::ofstream out(dir+"/legacy-six.sav",std::ios::binary|std::ios::trunc);out.write(b.data(),b.size());}
+    Check("load legacy damaged actor above the new cap",Load_Game((dir+"/legacy-six.sav").c_str()));
+    Check("normalization preserves half-health ratio",EnemyFusion::Tier(As_Techno(oldID))==5&&As_Techno(oldID)->Strength*2==Campaign_Max_Health(As_Techno(oldID)));
+
+}
+static void FifthTierCap(const std::string& dir){
+    Reset(dir);std::vector<TARGET> ids;
+    for(int i=0;i<5;++i){auto actor=BuildTier(5);if(!actor)return;ids.push_back(actor->As_Target());}
+    EnemyFusion::AI();EnemyFusion::AI();bool alive=true;
+    for(auto id:ids)alive=alive&&As_Techno(id)&&EnemyFusion::Tier(As_Techno(id))==5;
+    Check("five maximum-tier actors remain separate and never create a sixth tier",alive&&EnemyFusion::Count_Units()[5]==5);
 }
 bool Generate_Mission_Starts(const char* directory) {
     std::string dir(directory);for(auto kind:{RTTI_UNIT,RTTI_INFANTRY,RTTI_AIRCRAFT})Evolution(dir,kind);
-    ScopeTests(dir);NativeTickAndMixedTier(dir);ShotTest(dir);CountsAndRadius(dir);Screen(dir);LegacyAndBadFooter(dir);
+    ScopeTests(dir);NativeTickAndMixedTier(dir);ShotTest(dir);CountsAndRadius(dir);Screen(dir);FifthTierCap(dir);LegacyAndBadFooter(dir);
     std::printf("TOTAL FAILURES %d\n",failures);return failures==0;
 }

@@ -7,7 +7,7 @@ class FileClass;
 namespace EnemyFusion {
 int Tier(ObjectClass const* object);
 int Multiplier(ObjectClass const* object); // Combat stats: 2^tier.
-int Visual_Scale(ObjectClass const* object); // 8-bit fractional scale: 256 * 1.5^tier.
+int Visual_Scale(ObjectClass const* object); // 8-bit fractional scale: 256 * 1.3^tier.
 int Visual_Pixels(ObjectClass const* object, int pixels);
 using Counts = std::array<int, 16>;
 Counts Count_Units();

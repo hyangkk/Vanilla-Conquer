@@ -14,7 +14,9 @@ namespace {
 std::map<TARGET, unsigned> tiers;
 const char magic[8]={'C','N','C','F','U','S','0','1'};
 Counts lastCounts;
-const unsigned maxTier=15; // Native health and projectile strength are signed 16-bit.
+const unsigned maxTier=5;
+const unsigned legacyMaxTier=15;
+const unsigned fusionCount=5;
 bool Mobile(ObjectClass const* o) {
     return o && (o->What_Am_I()==RTTI_UNIT || o->What_Am_I()==RTTI_INFANTRY || o->What_Am_I()==RTTI_AIRCRAFT);
 }
@@ -42,7 +44,7 @@ int Tier(ObjectClass const* object) {
 int Multiplier(ObjectClass const* object) {return 1<<Tier(object);}
 int Visual_Scale(ObjectClass const* object) {
     std::int64_t numerator=256,denominator=1;
-    for(int i=0,tier=Tier(object);i<tier;++i){numerator*=3;denominator*=2;}
+    for(int i=0,tier=MIN(int(maxTier),Tier(object));i<tier;++i){numerator*=13;denominator*=10;}
     return int((numerator+denominator/2)/denominator);
 }
 int Visual_Pixels(ObjectClass const* object,int pixels) {
@@ -64,7 +66,7 @@ void Draw_Counts() {
 #ifndef REMASTER_BUILD
     if(!GameActive || ScenarioInit || GameToPlay!=GAME_NORMAL || !PlayerPtr || !PlayerPtr->IsHuman || Debug_Map)return;
     auto counts=Count_Units();
-    int rows=4;for(unsigned tier=4;tier<counts.size();++tier)if(counts[tier])++rows;
+    const int rows=maxTier+1;
     const int x=WindowList[WINDOW_TACTICAL][WINDOWX]+6;
     const int y=WindowList[WINDOW_TACTICAL][WINDOWY]+6;
     const int width=130,height=24+rows*12;
@@ -75,8 +77,7 @@ void Draw_Counts() {
     auto flags=TPF_6POINT|TPF_NOSHADOW;
     Fancy_Text_Print("ENEMY UNITS",x+6,y+4,LTGREY,TBLACK,flags);
     int row=0;
-    for(unsigned tier=0;tier<counts.size();++tier){
-        if(tier>3 && !counts[tier])continue;
+    for(unsigned tier=0;tier<=maxTier;++tier){
         int top=y+21+row++*12;
         if(!tier)Fancy_Text_Print("NORMAL",x+6,top,WHITE,TBLACK,flags);
         else Fancy_Text_Print("LEVEL %d",x+6,top,WHITE,TBLACK,flags,int(tier));
@@ -112,13 +113,13 @@ void AI() {
             if(!other || other==anchor || !Ready(other) || !Same(anchor,other))continue;
             // Mission-linked actors cannot be discarded; an anchor keeps its own trigger and orders.
             if(other->Trigger || ::Distance(anchor->Coord,other->Coord)>10*ICON_LEPTON_W)continue;
-            group.push_back(other);if(group.size()==10)break;
+            group.push_back(other);if(group.size()==fusionCount)break;
         }
-        if(group.size()!=10)continue;
+        if(group.size()!=fusionCount)continue;
         std::int64_t ratios=0;
         for(auto member:group)ratios+=std::min<std::int64_t>(65536,std::int64_t(member->Strength)*65536/MAX(1,Campaign_Max_Health(member)));
         tiers[anchor->As_Target()]=Tier(anchor)+1;
-        anchor->Strength=MAX(1,int(std::int64_t(Campaign_Max_Health(anchor))*ratios/(10*65536)));
+        anchor->Strength=MAX(1,int(std::int64_t(Campaign_Max_Health(anchor))*ratios/(fusionCount*65536)));
         anchor->Mark(MARK_CHANGE);
         // Native deletion releases occupancy, team/radio references and heap counts without combat deaths or crew.
         for(unsigned i=1;i<group.size();++i) {
@@ -141,14 +142,24 @@ bool Load(FileClass& file) {
     if(n!=8 || std::memcmp(header,magic,8))return false;
     std::uint32_t count;if(file.Read(&count,4)!=4 || count>UNIT_MAX+INFANTRY_MAX+AIRCRAFT_MAX)return false;
     for(unsigned i=0;i<count;++i){std::uint32_t data[2];
-        if(file.Read(data,8)!=8 || !ValidID(data[0]) || !data[1] || data[1]>maxTier || tiers.count(data[0]))return false;
+        if(file.Read(data,8)!=8 || !ValidID(data[0]) || !data[1] || data[1]>legacyMaxTier || tiers.count(data[0]))return false;
         // Parsing precedes Decode_All_Pointers: never dereference Class/House here.
         tiers[data[0]]=data[1];
     }
     return true;
 }
 bool Fixup() {
-    for(auto e:tiers){auto object=As_Techno(e.first);if(!object || !Mobile(object) || !object->IsActive)return false;}
+    for(auto& e:tiers){
+        auto object=As_Techno(e.first);
+        if(!object || !Mobile(object) || !object->IsActive)return false;
+        if(e.second>maxTier){
+            // Prior saves support tiers up to 15. Normalize after pointer decoding, preserving health percentage.
+            const int oldMaximum=Campaign_Max_Health(object);
+            const int oldHealth=object->Strength;
+            e.second=maxTier;
+            if(oldHealth>0)object->Strength=MAX(1,int((std::int64_t(oldHealth)*Campaign_Max_Health(object)+oldMaximum/2)/oldMaximum));
+        }
+    }
     return true;
 }
 }
