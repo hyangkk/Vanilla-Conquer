@@ -37,6 +37,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 
 void const* TabClass::TabShape = NULL;
 
@@ -121,6 +122,7 @@ void TabClass::Draw_It(bool complete)
     }
 
     Credits.Graphic_Logic(complete || IsToRedraw);
+    EnemyFusion::Draw_Counts();
 #endif
     IsToRedraw = false;
 }

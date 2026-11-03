@@ -2052,7 +2052,6 @@ void UnitClass::Draw_It(int x, int y, WindowNumberType window)
     void const* shapefile; // Working shape file pointer.
     int facing = Facing_To_32(PrimaryFacing.Current());
     int tfacing = Facing_To_32(SecondaryFacing.Current());
-    const int visual_scale = EnemyFusion::Multiplier(this);
     int shapestart;
     int xx, yy;
 
@@ -2215,7 +2214,7 @@ void UnitClass::Draw_It(int x, int y, WindowNumberType window)
         */
         if (Class->IsRadarEquipped) {
             shapenum = 32 + (Frame % 32);
-            Techno_Draw_Object(shapefile, shapenum, x, y - 5 * visual_scale, window);
+            Techno_Draw_Object(shapefile, shapenum, x, y - EnemyFusion::Visual_Pixels(this, 5), window);
         }
 
         /*
@@ -2264,8 +2263,8 @@ void UnitClass::Draw_It(int x, int y, WindowNumberType window)
             /*
             **	Actually perform the draw. Overlay an optional shimmer effect as necessary.
             */
-            x1 = x + (x1 - x) * visual_scale;
-            y1 = y + (y1 - y) * visual_scale;
+            x1 = x + EnemyFusion::Visual_Pixels(this, x1 - x);
+            y1 = y + EnemyFusion::Visual_Pixels(this, y1 - y);
             Techno_Draw_Object(shapefile, shapenum, x1, y1, window);
         }
 

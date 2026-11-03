@@ -13,6 +13,7 @@ namespace EnemyFusion {
 namespace {
 std::map<TARGET, unsigned> tiers;
 const char magic[8]={'C','N','C','F','U','S','0','1'};
+Counts lastCounts;
 const unsigned maxTier=15; // Native health and projectile strength are signed 16-bit.
 bool Mobile(ObjectClass const* o) {
     return o && (o->What_Am_I()==RTTI_UNIT || o->What_Am_I()==RTTI_INFANTRY || o->What_Am_I()==RTTI_AIRCRAFT);
@@ -39,11 +40,60 @@ int Tier(ObjectClass const* object) {
     auto it=tiers.find(object->As_Target());return it==tiers.end()?0:it->second;
 }
 int Multiplier(ObjectClass const* object) {return 1<<Tier(object);}
+int Visual_Scale(ObjectClass const* object) {
+    std::int64_t numerator=256,denominator=1;
+    for(int i=0,tier=Tier(object);i<tier;++i){numerator*=3;denominator*=2;}
+    return int((numerator+denominator/2)/denominator);
+}
+int Visual_Pixels(ObjectClass const* object,int pixels) {
+    std::int64_t scaled=std::int64_t(pixels)*Visual_Scale(object);
+    return int(scaled>=0?(scaled+128)/256:-((-scaled+128)/256));
+}
+Counts Count_Units() {
+    Counts result{};
+    auto count=[&](TechnoClass const* o) {
+        if(o->IsActive && !o->IsInLimbo && o->Strength>0 && Campaign_Enemy_House(o->House)
+            && Map.In_Radar(Coord_Cell(o->Coord)))++result[Tier(o)];
+    };
+    for(int i=0;i<Units.Count();++i)count(Units.Ptr(i));
+    for(int i=0;i<Infantry.Count();++i)count(Infantry.Ptr(i));
+    for(int i=0;i<Aircraft.Count();++i)count(Aircraft.Ptr(i));
+    return result;
+}
+void Draw_Counts() {
+#ifndef REMASTER_BUILD
+    if(!GameActive || ScenarioInit || GameToPlay!=GAME_NORMAL || !PlayerPtr || !PlayerPtr->IsHuman || Debug_Map)return;
+    auto counts=Count_Units();
+    int rows=4;for(unsigned tier=4;tier<counts.size();++tier)if(counts[tier])++rows;
+    const int x=WindowList[WINDOW_TACTICAL][WINDOWX]+6;
+    const int y=WindowList[WINDOW_TACTICAL][WINDOWY]+6;
+    const int width=130,height=24+rows*12;
+    if(WindowList[WINDOW_TACTICAL][WINDOWWIDTH]<width+12)return;
+    if(!LogicPage->Lock())return;
+    LogicPage->Fill_Rect(x,y,x+width-1,y+height-1,BLACK);
+    LogicPage->Draw_Rect(x,y,x+width-1,y+height-1,GREY);
+    auto flags=TPF_6POINT|TPF_NOSHADOW;
+    Fancy_Text_Print("ENEMY UNITS",x+6,y+4,LTGREY,TBLACK,flags);
+    int row=0;
+    for(unsigned tier=0;tier<counts.size();++tier){
+        if(tier>3 && !counts[tier])continue;
+        int top=y+21+row++*12;
+        if(!tier)Fancy_Text_Print("NORMAL",x+6,top,WHITE,TBLACK,flags);
+        else Fancy_Text_Print("LEVEL %d",x+6,top,WHITE,TBLACK,flags,int(tier));
+        Fancy_Text_Print("%d",x+width-7,top,YELLOW,TBLACK,flags|TPF_RIGHT,counts[tier]);
+    }
+    LogicPage->Unlock();
+#endif
+}
 int Health(ObjectClass const* object,int base) {return int(std::min(std::int64_t(32767),std::int64_t(base)*Multiplier(object)));}
 int Firepower(TechnoClass const* object,int base) {return Health(object,base);}
 void Forget(ObjectClass const* object) {if(Mobile(object))tiers.erase(object->As_Target());}
-void Reset(){tiers.clear();}
-void Redraw(){if(!tiers.empty())Map.Flag_To_Redraw(true);}
+void Reset(){tiers.clear();lastCounts.fill(-1);}
+void Redraw(){
+    auto counts=Count_Units();
+    if(!tiers.empty() || counts!=lastCounts)Map.Flag_To_Redraw(true);
+    lastCounts=counts;
+}
 void AI() {
     if(!GameActive || ScenarioInit || GameToPlay!=GAME_NORMAL || !PlayerPtr || !PlayerPtr->IsHuman)return;
     std::vector<TARGET> objects;
@@ -61,7 +111,7 @@ void AI() {
             auto other=static_cast<FootClass*>(As_Techno(otherID));
             if(!other || other==anchor || !Ready(other) || !Same(anchor,other))continue;
             // Mission-linked actors cannot be discarded; an anchor keeps its own trigger and orders.
-            if(other->Trigger || ::Distance(anchor->Coord,other->Coord)>5*ICON_LEPTON_W)continue;
+            if(other->Trigger || ::Distance(anchor->Coord,other->Coord)>10*ICON_LEPTON_W)continue;
             group.push_back(other);if(group.size()==10)break;
         }
         if(group.size()!=10)continue;

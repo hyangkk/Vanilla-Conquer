@@ -1034,8 +1034,8 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window)
     */
     int width, height;
     Class_Of().Dimensions(width, height);
-    width = MIN(2048, width * EnemyFusion::Multiplier(this));
-    height = MIN(2048, height * EnemyFusion::Multiplier(this));
+    width = MIN(2048, EnemyFusion::Visual_Pixels(this, width));
+    height = MIN(2048, EnemyFusion::Visual_Pixels(this, height));
     int lx = width / 2;
     int ly = height / 2;
     int dx = width / 5;
@@ -1068,7 +1068,7 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window)
         **	The infantry select box should be a bit higher than normal.
         */
         if (What_Am_I() == RTTI_INFANTRY) {
-            y -= 6 * EnemyFusion::Multiplier(this);
+            y -= EnemyFusion::Visual_Pixels(this, 6);
         }
 
         if (What_Am_I() == RTTI_BUILDING && ((BuildingTypeClass const&)Class_Of()).Type == STRUCT_BARRACKS) {

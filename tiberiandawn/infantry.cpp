@@ -586,8 +586,8 @@ void InfantryClass::Draw_It(int x, int y, WindowNumberType window)
     if (!shapefile)
         return;
 
-    y += 4 * EnemyFusion::Multiplier(this);
-    x -= 2 * EnemyFusion::Multiplier(this);
+    y += EnemyFusion::Visual_Pixels(this, 4);
+    x -= EnemyFusion::Visual_Pixels(this, 2);
 
     /*
     **	Fetch the basic body shape pointer. This requires taking into account

@@ -970,7 +970,7 @@ bool ObjectClass::Render(bool forced)
             x=Lepton_To_Pixel(Coord_X(coord))-Lepton_To_Pixel(Coord_X(Map.TacticalCoord));
             y=Lepton_To_Pixel(Coord_Y(coord))-Lepton_To_Pixel(Coord_Y(Map.TacticalCoord));
             int w=0,h=0;Class_Of().Dimensions(w,h);
-            w=MIN(2048,w*EnemyFusion::Multiplier(this));h=MIN(2048,h*EnemyFusion::Multiplier(this));
+            w=MIN(2048,EnemyFusion::Visual_Pixels(this, w));h=MIN(2048,EnemyFusion::Visual_Pixels(this, h));
             visible=x+w>=0 && y+h>=0 && x-w<WindowList[WINDOW_TACTICAL][WINDOWWIDTH]
                 && y-h<WindowList[WINDOW_TACTICAL][WINDOWHEIGHT];
         }

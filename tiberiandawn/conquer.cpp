@@ -2570,7 +2570,7 @@ void CC_Draw_Shape(ObjectClass* object,
         return;
     }
 #endif
-    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Multiplier(object));
+    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Visual_Scale(object));
 }
 
 void CC_Draw_Shape(ObjectClass* object,
@@ -2593,7 +2593,7 @@ void CC_Draw_Shape(ObjectClass* object,
         return;
     }
 #endif
-    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Multiplier(object));
+    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Visual_Scale(object));
 }
 
 void CC_Draw_Pip(ObjectClass* object,
@@ -2699,8 +2699,8 @@ void CC_Draw_Shape(void const* shapefile,
                 unsigned int previous=UseBigShapeBuffer;
                 ~CacheMode(){UseBigShapeBuffer=previous;}
             } cache_mode;
-            if (pixel_scale>1 && frame_width>0 && frame_height>0) {
-                int w=MIN(2048,frame_width*pixel_scale),h=MIN(2048,frame_height*pixel_scale);
+            if (pixel_scale>256 && frame_width>0 && frame_height>0) {
+                int w=MIN(2048,(frame_width*pixel_scale+128)/256),h=MIN(2048,(frame_height*pixel_scale+128)/256);
                 auto source=static_cast<const unsigned char*>(Get_Shape_Header_Data(reinterpret_cast<void*>(shape_size)));
                 enlarged.resize(size_t(w)*h);
                 for(int yy=0;yy<h;++yy)for(int xx=0;xx<w;++xx)
