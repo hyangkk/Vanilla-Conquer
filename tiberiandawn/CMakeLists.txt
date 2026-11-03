@@ -99,6 +99,7 @@ set(TIBDAWN_SRC
     campaignrepair.cpp
     campaignexpansion.cpp
     campaignenemies.cpp
+    enemyfusion.cpp
     campaignwaves.cpp
     scenario.cpp
     scenarioini.cpp

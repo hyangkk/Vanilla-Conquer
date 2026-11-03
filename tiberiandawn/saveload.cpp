@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 #include "campaignenemies.h"
 #include "campaignperks.h"
 #include "campaigncredits.h"
@@ -495,6 +496,7 @@ bool Load_Game(const char* file_name)
     Decode_All_Pointers();
     // Jurassic mode is selected by the loaded campaign; it is not serialized in Special.
     Special.IsJurassic = (ScenPlayer == SCEN_PLAYER_JP);
+    if (!EnemyFusion::Fixup()) return false;
     Campaign_SAM_Health_Apply_All();
     Campaign_Bike_Health_Apply_All();
     Campaign_SAM_Chain_Fixup();

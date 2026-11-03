@@ -59,7 +59,10 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
+#include "common/keyframe.h"
 #include <cstdlib>
+#include <vector>
 #include "smoothmotion.h"
 #include "common/irandom.h"
 #include <stdlib.h>
@@ -2567,7 +2570,7 @@ void CC_Draw_Shape(ObjectClass* object,
         return;
     }
 #endif
-    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata);
+    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Multiplier(object));
 }
 
 void CC_Draw_Shape(ObjectClass* object,
@@ -2590,7 +2593,7 @@ void CC_Draw_Shape(ObjectClass* object,
         return;
     }
 #endif
-    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata);
+    CC_Draw_Shape(shapefile, shapenum, x, y, window, flags, fadingdata, ghostdata, EnemyFusion::Multiplier(object));
 }
 
 void CC_Draw_Pip(ObjectClass* object,
@@ -2662,7 +2665,8 @@ void CC_Draw_Shape(void const* shapefile,
                    WindowNumberType window,
                    ShapeFlags_Type flags,
                    void const* fadingdata,
-                   void const* ghostdata)
+                   void const* ghostdata,
+                   int pixel_scale)
 {
 #if true
     int predoffset;
@@ -2688,6 +2692,23 @@ void CC_Draw_Shape(void const* shapefile,
                                              WindowList[window][WINDOWHEIGHT]);
 
             shape_pointer = (char*)shape_size;
+            int frame_width = Get_Build_Frame_Width(shapefile);
+            int frame_height = Get_Build_Frame_Height(shapefile);
+            std::vector<unsigned char> enlarged;
+            struct CacheMode {
+                unsigned int previous=UseBigShapeBuffer;
+                ~CacheMode(){UseBigShapeBuffer=previous;}
+            } cache_mode;
+            if (pixel_scale>1 && frame_width>0 && frame_height>0) {
+                int w=MIN(2048,frame_width*pixel_scale),h=MIN(2048,frame_height*pixel_scale);
+                auto source=static_cast<const unsigned char*>(Get_Shape_Header_Data(reinterpret_cast<void*>(shape_size)));
+                enlarged.resize(size_t(w)*h);
+                for(int yy=0;yy<h;++yy)for(int xx=0;xx<w;++xx)
+                    enlarged[size_t(yy)*w+xx]=source[size_t(yy)*frame_height/h*frame_width+size_t(xx)*frame_width/w];
+                shape_pointer=reinterpret_cast<char*>(enlarged.data());
+                frame_width=w;frame_height=h;UseBigShapeBuffer=0;
+            }
+
 
             /*
             **	Special shadow drawing code (used for aircraft and bullets).
@@ -2708,8 +2729,8 @@ void CC_Draw_Shape(void const* shapefile,
                 if ((flags & (SHAPE_GHOST | SHAPE_FADING)) == (SHAPE_GHOST | SHAPE_FADING)) {
                     Buffer_Frame_To_Page(x,
                                          y,
-                                         Get_Build_Frame_Width(shapefile),
-                                         Get_Build_Frame_Height(shapefile),
+                                         frame_width,
+                                         frame_height,
                                          shape_pointer,
                                          draw_window,
                                          flags | SHAPE_TRANS,
@@ -2721,8 +2742,8 @@ void CC_Draw_Shape(void const* shapefile,
                     if (flags & SHAPE_FADING) {
                         Buffer_Frame_To_Page(x,
                                              y,
-                                             Get_Build_Frame_Width(shapefile),
-                                             Get_Build_Frame_Height(shapefile),
+                                             frame_width,
+                                             frame_height,
                                              shape_pointer,
                                              draw_window,
                                              flags | SHAPE_TRANS,
@@ -2733,8 +2754,8 @@ void CC_Draw_Shape(void const* shapefile,
                         if (flags & SHAPE_PREDATOR) {
                             Buffer_Frame_To_Page(x,
                                                  y,
-                                                 Get_Build_Frame_Width(shapefile),
-                                                 Get_Build_Frame_Height(shapefile),
+                                                 frame_width,
+                                                 frame_height,
                                                  shape_pointer,
                                                  draw_window,
                                                  flags | SHAPE_TRANS,
@@ -2742,8 +2763,8 @@ void CC_Draw_Shape(void const* shapefile,
                         } else {
                             Buffer_Frame_To_Page(x,
                                                  y,
-                                                 Get_Build_Frame_Width(shapefile),
-                                                 Get_Build_Frame_Height(shapefile),
+                                                 frame_width,
+                                                 frame_height,
                                                  shape_pointer,
                                                  draw_window,
                                                  flags | SHAPE_TRANS,

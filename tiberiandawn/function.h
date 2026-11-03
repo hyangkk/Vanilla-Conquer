@@ -328,7 +328,8 @@ void CC_Draw_Shape(void const* shapefile,
                    WindowNumberType window,
                    ShapeFlags_Type flags,
                    void const* fadingdata = 0,
-                   void const* ghostdata = 0);
+                   void const* ghostdata = 0,
+                   int pixel_scale = 1);
 
 // Added for draw intercept. ST - 1/17/2019 12:31PM
 void CC_Draw_Shape(ObjectClass* object,

@@ -27,5 +27,6 @@ unsigned short Get_Build_Frame_Width(void const* dataptr);
 unsigned short Get_Build_Frame_Height(void const* dataptr);
 bool Get_Build_Frame_Palette(void const* dataptr, void* palette);
 int Get_Last_Frame_Length(void);
+void* Get_Shape_Header_Data(void* ptr);
 
 #endif // KEYFRAME_H

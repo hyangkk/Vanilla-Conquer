@@ -53,6 +53,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigndefense.h"
 #include "campaigntraffic.h"
 
 DriveClass::DriveClass(void)
@@ -1146,7 +1147,7 @@ bool DriveClass::Start_Of_Move(void)
         /*
         **	A damaged unit has a reduced speed.
         */
-        if ((Class->MaxStrength >> 1) > Strength) {
+        if ((Campaign_Max_Health(this) >> 1) > Strength) {
             speed -= (speed >> 2); // Three quarters speed.
         }
         if ((speed != Speed) /* || !SpeedAdd*/) {

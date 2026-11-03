@@ -79,6 +79,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 #include "campaigntraffic.h"
 #include "campaignenemies.h"
 #include "ccini.h"
@@ -296,6 +297,7 @@ InfantryClass::InfantryClass(InfantryType classid, HousesType house)
  *=============================================================================================*/
 InfantryClass::~InfantryClass(void)
 {
+    Campaign_Enemies_Forget(this);
     if (GameActive && Class) {
 #ifdef USE_RA_AI
         //
@@ -462,10 +464,7 @@ ResultType InfantryClass::Take_Damage(int& damage, int distance, WarheadType war
         switch (warhead) {
         case WARHEAD_FEEDME:
             if (source) {
-                source->Strength += 30;
-                if (source->Strength > source->Class_Of().MaxStrength) {
-                    source->Strength = source->Class_Of().MaxStrength;
-                }
+                source->Strength = MIN(EnemyFusion::Health(source, source->Class_Of().MaxStrength), int(source->Strength) + 30);
             }
             // Fall thru to WARHEAD_SA:
 
@@ -587,8 +586,8 @@ void InfantryClass::Draw_It(int x, int y, WindowNumberType window)
     if (!shapefile)
         return;
 
-    y += 4;
-    x -= 2;
+    y += 4 * EnemyFusion::Multiplier(this);
+    x -= 2 * EnemyFusion::Multiplier(this);
 
     /*
     **	Fetch the basic body shape pointer. This requires taking into account

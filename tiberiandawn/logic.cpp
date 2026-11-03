@@ -35,6 +35,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 #include "campaignexpansion.h"
 #include "campaignrepair.h"
 #include "campaigntraffic.h"
@@ -186,6 +187,8 @@ void LogicClass::AI(void)
     int index;
 
     FramesPerSecond++;
+    // Enlarged sprites extend beyond native dirty-cell bounds, including when motion smoothing is disabled.
+    EnemyFusion::Redraw();
     if (Frame % TICKS_PER_SECOND == 0) {
         Campaign_Enemies_Apply();
         Campaign_Waves_AI();
@@ -193,6 +196,7 @@ void LogicClass::AI(void)
         Campaign_Auto_Repair_Walls();
         Campaign_Formation_AI();
         Campaign_Traffic_AI();
+        EnemyFusion::AI();
     }
 
     /*

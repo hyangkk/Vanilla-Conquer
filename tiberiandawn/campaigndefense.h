@@ -1,6 +1,7 @@
 // Player-only campaign defense targeting and SAM conveniences.
 #ifndef CAMPAIGNDEFENSE_H
 #define CAMPAIGNDEFENSE_H
+#include "enemyfusion.h"
 inline bool Campaign_SAM_Ground(TechnoClass const* object)
 {
     return GameToPlay == GAME_NORMAL && object && object->What_Am_I() == RTTI_BUILDING
@@ -58,7 +59,7 @@ inline int Campaign_Max_Health(ObjectClass const* object)
     int maximum=object->Class_Of().MaxStrength;
     if (object->What_Am_I()==RTTI_BUILDING && Campaign_SAM_Ground(static_cast<BuildingClass const*>(object))) maximum*=5;
     if (object->What_Am_I()==RTTI_UNIT && Campaign_Player_Bike(static_cast<UnitClass const*>(object))) maximum*=2;
-    return maximum;
+    return EnemyFusion::Health(object,maximum);
 }
 void Campaign_SAM_Health_Reset();
 void Campaign_SAM_Health_Apply(BuildingClass* sam);

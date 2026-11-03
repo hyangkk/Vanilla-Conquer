@@ -112,6 +112,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 #include "siegetank.h"
 #include "campaignbike.h"
 #include "campaigndefense.h"
@@ -1033,6 +1034,8 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window)
     */
     int width, height;
     Class_Of().Dimensions(width, height);
+    width = MIN(2048, width * EnemyFusion::Multiplier(this));
+    height = MIN(2048, height * EnemyFusion::Multiplier(this));
     int lx = width / 2;
     int ly = height / 2;
     int dx = width / 5;
@@ -1065,7 +1068,7 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window)
         **	The infantry select box should be a bit higher than normal.
         */
         if (What_Am_I() == RTTI_INFANTRY) {
-            y -= 6;
+            y -= 6 * EnemyFusion::Multiplier(this);
         }
 
         if (What_Am_I() == RTTI_BUILDING && ((BuildingTypeClass const&)Class_Of()).Type == STRUCT_BARRACKS) {
@@ -2384,6 +2387,7 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
     **	created.
     */
     int firepower = (weapon->Attack > 0) ? ((int)weapon->Attack * House->FirepowerBias) : 0;
+    firepower = EnemyFusion::Firepower(this, firepower);
     bullet = new BulletClass(weapon->Fires);
     if (bullet) {
         bullet->Assign_Target(target);

@@ -88,6 +88,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "enemyfusion.h"
 #include "campaignenemies.h"
 #include "ccini.h"
 
@@ -332,6 +333,7 @@ bool AircraftClass::Unlimbo(COORDINATE coord, DirType dir)
 void AircraftClass::Draw_It(int x, int y, WindowNumberType window)
 {
     Validate();
+    const int visual_scale=EnemyFusion::Multiplier(this);
     void const* shapefile; // Working shape file pointer.
     int shapenum = 0;
     int facing = Facing_To_32(SecondaryFacing);
@@ -394,8 +396,8 @@ void AircraftClass::Draw_It(int x, int y, WindowNumberType window)
             CC_Draw_Shape(this,
                           shapefile,
                           shapenum,
-                          x + 1,
-                          y + 2,
+                          x + visual_scale,
+                          y + 2 * visual_scale,
                           window,
                           SHAPE_PREDATOR | SHAPE_CENTER | SHAPE_WIN_REL | SHAPE_FADING,
                           Map.FadingShade,
@@ -409,8 +411,8 @@ void AircraftClass::Draw_It(int x, int y, WindowNumberType window)
             CC_Draw_Shape(this,
                           shapefile,
                           shapenum,
-                          x + 1,
-                          y + 2,
+                          x + visual_scale,
+                          y + 2 * visual_scale,
                           window,
                           SHAPE_PREDATOR | SHAPE_CENTER | SHAPE_WIN_REL | SHAPE_FADING,
                           Map.FadingShade,
@@ -452,15 +454,15 @@ void AircraftClass::Draw_It(int x, int y, WindowNumberType window)
             short xx = x;
             short yy = y - Altitude;
             FacingType face = Dir_Facing(SecondaryFacing);
-            Move_Point(xx, yy, SecondaryFacing.Current(), _stretch[face]);
+            Move_Point(xx, yy, SecondaryFacing.Current(), _stretch[face] * visual_scale);
             // CC_Draw_Shape(Class->RRotorData, shapenum, xx, yy-2, window, flags, NULL, Map.UnitShadow);		// 6/18/2019
             // - ST
-            CC_Draw_Shape(this, "RROTOR", Class->RRotorData, shapenum, xx, yy - 2, window, flags, NULL, Map.UnitShadow);
+            CC_Draw_Shape(this, "RROTOR", Class->RRotorData, shapenum, xx, yy - 2 * visual_scale, window, flags, NULL, Map.UnitShadow);
 
-            Move_Point(xx, yy, SecondaryFacing.Current() + DIR_S, _stretch[face] * 2);
+            Move_Point(xx, yy, SecondaryFacing.Current() + DIR_S, _stretch[face] * 2 * visual_scale);
             // CC_Draw_Shape(this, Class->LRotorData, shapenum, xx, yy-2, window, flags, NULL, Map.UnitShadow);			//
             // 6/18/2019 - ST
-            CC_Draw_Shape(this, "LROTOR", Class->LRotorData, shapenum, xx, yy - 2, window, flags, NULL, Map.UnitShadow);
+            CC_Draw_Shape(this, "LROTOR", Class->LRotorData, shapenum, xx, yy - 2 * visual_scale, window, flags, NULL, Map.UnitShadow);
 
         } else {
 
@@ -474,7 +476,7 @@ void AircraftClass::Draw_It(int x, int y, WindowNumberType window)
                           Class->RRotorData,
                           shapenum,
                           x,
-                          (y - Altitude) - 2,
+                          (y - Altitude) - 2 * visual_scale,
                           window,
                           flags,
                           NULL,
@@ -3226,6 +3228,7 @@ DirType AircraftClass::Fire_Direction(void) const
  *=============================================================================================*/
 AircraftClass::~AircraftClass(void)
 {
+    Campaign_Enemies_Forget(this);
     if (GameActive && Class) {
 
 #ifdef USE_RA_AI
