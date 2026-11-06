@@ -28,11 +28,12 @@ bool Generate_Mission_Starts(const char* directory) {
         if(!Fresh(start.root)){Check("fresh native scenario loads",false);return false;}
         CCFileClass file((start.root+".INI").c_str());CCINIClass ini;
         Check("scenario INI is readable",ini.Load(file,false));
-        int original=ini.Get_Int(PlayerPtr->Class->IniName,"Credits",0)*100;
-        Check("fresh start retains original scenario credits",PlayerPtr->Available_Money()==original&&PlayerPtr->InitialCredits==original);
+        int native=ini.Get_Int(PlayerPtr->Class->IniName,"Credits",0)*100;
+        int original=MAX(100,native);
+        Check("fresh start retains native funds with a 100-credit floor",PlayerPtr->Available_Money()==original&&PlayerPtr->InitialCredits==original);
         char path[512];std::snprintf(path,sizeof(path),"%s/original/savegame.%03d",dir.c_str(),start.slot);
         if(!Load_Game(path)){Check("legacy start save loads",false);return false;}
-        Check("legacy frame-zero start restores original credits",Frame==0&&PlayerPtr->Credits==original&&PlayerPtr->Tiberium==0&&PlayerPtr->InitialCredits==original);
+        Check("legacy frame-zero start restores funds with a 100-credit floor",Frame==0&&PlayerPtr->Credits==original&&PlayerPtr->Tiberium==0&&PlayerPtr->InitialCredits==original);
         Check("displayed starting funds match restored balance",PlayerPtr->VisibleCredits.Credits==original&&PlayerPtr->VisibleCredits.Current==original);
         Check("scenario identity preserved",start.root==Scen.ScenarioName);
         int units=Units.Count(),infantry=Infantry.Count(),buildings=Buildings.Count();
@@ -40,8 +41,8 @@ bool Generate_Mission_Starts(const char* directory) {
         Check("save restored start",Save_Game(roundtrip.c_str(),"Original opening funds"));
         Check("load restored start",Load_Game(roundtrip.c_str()));
         Check("restoring again is idempotent and keeps armies",PlayerPtr->Available_Money()==original&&Units.Count()==units&&Infantry.Count()==infantry&&Buildings.Count()==buildings);
-        report<<start.slot<<'\t'<<start.root<<'\t'<<original<<'\t'<<PlayerPtr->Credits<<'\n';
-        std::printf("MISSION %s native=%d loaded=%d\n",start.root.c_str(),original,PlayerPtr->Credits);
+        report<<start.slot<<'\t'<<start.root<<'\t'<<native<<'\t'<<PlayerPtr->Credits<<'\n';
+        std::printf("MISSION %s native=%d loaded=%d\n",start.root.c_str(),native,PlayerPtr->Credits);
     }
     Check("fresh carry-over scenario starts",Fresh("SCG02EA",1234));int carryBalance=PlayerPtr->Available_Money();
     Check("native carry-over remains part of starting balance",carryBalance>0&&Scen.CarryOverMoney==1234);
@@ -56,5 +57,14 @@ bool Generate_Mission_Starts(const char* directory) {
     Check("ongoing money and initial-accounting are unchanged",PlayerPtr->Credits==1234&&PlayerPtr->Tiberium==56&&PlayerPtr->InitialCredits==999);
     auto balance=PlayerPtr->Available_Money();Restore_Campaign_Starting_Credits();
     Check("explicit helper also ignores ongoing games",PlayerPtr->Available_Money()==balance);
+    PlayerPtr->Credits=0;PlayerPtr->Tiberium=0;
+    Check("save ongoing zero balance",Save_Game((dir+"/zero-progress.sav").c_str(),"Keep spent funds"));
+    Check("reload ongoing zero balance",Load_Game((dir+"/zero-progress.sav").c_str()));
+    Check("minimum opening funds never refill a progressed game",Frame>0&&PlayerPtr->Available_Money()==0);
+    for(int opening:{0,1,99,100,101,50000}){
+        PlayerPtr->Credits=opening;PlayerPtr->InitialCredits=opening;PlayerPtr->Tiberium=0;
+        Apply_Campaign_Minimum_Starting_Credits();
+        Check("opening floor respects boundary and retains larger balances",PlayerPtr->Credits==MAX(100,opening)&&PlayerPtr->InitialCredits==MAX(100,opening));
+    }
     std::printf("TOTAL FAILURES %d\n",failures);return failures==0;
 }

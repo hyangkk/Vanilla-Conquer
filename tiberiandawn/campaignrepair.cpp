@@ -1,4 +1,4 @@
-// Paid automatic field repair for all player campaign forces.
+// Automatic field regeneration for all player campaign mobile forces.
 #include "function.h"
 #include "campaigndefense.h"
 #include "campaignrepair.h"
@@ -13,10 +13,8 @@ void Campaign_Auto_Repair(TechnoClass* object)
     int maximum=Campaign_Max_Health(object);if(object->Strength>=maximum)return;
     int step=MAX(1,maximum/50); // Two percent per game second, with at least one HP.
     int restored=MIN(step,maximum-object->Strength);
-    auto type=object->Techno_Type_Class();
-    int cost=MAX(1,int(std::int64_t(type->Cost_Of())*restored/(MAX(1,int(type->MaxStrength))*4)));
-    if(object->House->Available_Money()<cost)return;
-    object->House->Spend_Money(cost);object->Strength+=restored;object->Mark(MARK_CHANGE);
+    // Field healing must not stop when the player has no repair funds.
+    object->Strength+=restored;object->Mark(MARK_CHANGE);
 }
 void Campaign_Auto_Repair_Walls()
 {

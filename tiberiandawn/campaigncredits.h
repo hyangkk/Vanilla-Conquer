@@ -1,8 +1,19 @@
 // Restore native opening balances in existing frame-zero campaign saves.
-// Fresh missions use Read_Scenario_INI unchanged, including native carry-over.
+// Fresh missions retain native carry-over and receive only a minimum opening balance.
 #ifndef CAMPAIGNCREDITS_H
 #define CAMPAIGNCREDITS_H
 #include <cstdio>
+inline void Apply_Campaign_Minimum_Starting_Credits()
+{
+    if(GameToPlay!=GAME_NORMAL || !PlayerPtr || !PlayerPtr->IsHuman)return;
+    const int grant=100-PlayerPtr->Available_Money();
+    if(grant<=0)return;
+    PlayerPtr->Credits+=grant;
+    PlayerPtr->InitialCredits+=grant;
+    PlayerPtr->VisibleCredits.Credits=PlayerPtr->Available_Money();
+    PlayerPtr->VisibleCredits.Current=PlayerPtr->Available_Money();
+    PlayerPtr->VisibleCredits.IsToRedraw=true;
+}
 inline void Restore_Campaign_Starting_Credits()
 {
     if (GameToPlay != GAME_NORMAL || Frame != 0 || !PlayerPtr || !PlayerPtr->IsHuman) return;
@@ -16,7 +27,7 @@ inline void Restore_Campaign_Starting_Credits()
     int carryover = Fixed_To_Cardinal(Scen.CarryOverMoney, percent);
     int cap = ini.Get_Int("Basic", "CarryOverCap", -1);
     if (cap != -1) carryover = MIN(carryover, cap);
-    credits += carryover;
+    credits = MAX(100,credits+carryover);
     PlayerPtr->Tiberium = 0;
     PlayerPtr->Credits = credits;
     PlayerPtr->InitialCredits = credits;

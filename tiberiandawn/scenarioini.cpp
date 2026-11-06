@@ -48,6 +48,7 @@
 #include "function.h"
 #include "common/irandom.h"
 #include "ccini.h"
+#include "campaigncredits.h"
 
 /************************************* Prototypes *********************************************/
 static void Assign_Houses(void);
@@ -377,6 +378,7 @@ bool Read_Scenario_Ini(char* root, bool fresh)
         }
         PlayerPtr->Credits += carryover;
         PlayerPtr->InitialCredits += carryover;
+        Apply_Campaign_Minimum_Starting_Credits();
 
         if (Special.IsJurassic) {
             PlayerPtr->ActLike = Whom;
@@ -784,6 +786,7 @@ bool Read_Scenario_Ini_File(char* scenario_file_name, char* bin_file_name, const
         }
         PlayerPtr->Credits += carryover;
         PlayerPtr->InitialCredits += carryover;
+        Apply_Campaign_Minimum_Starting_Credits();
 
         if (Special.IsJurassic) {
             PlayerPtr->ActLike = Whom;
