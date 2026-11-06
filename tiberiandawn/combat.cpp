@@ -311,15 +311,17 @@ void Campaign_SAM_Health_Apply_All()
 }
 
 namespace {
-constexpr unsigned samBounceLimit=10;
+constexpr unsigned samBounceLimit=5;
+constexpr unsigned samHistoryCapacity=11; // Keep the legacy 03 record layout stable.
 struct SAMChain {
     unsigned remaining=samBounceLimit,rawDamage=0,count=0;
     HousesType owner=HOUSE_NONE;
     // Count every attempt; TARGET_NONE records a detonation after target loss.
-    std::array<TARGET,samBounceLimit+1> visited{};
+    std::array<TARGET,samHistoryCapacity> visited{};
 };
 std::map<TARGET,SAMChain> samChains;
-const char chainMagic[8]={'C','N','C','C','H','N','0','3'};
+const char chainMagic[8]={'C','N','C','C','H','N','0','4'};
+const char tenChainMagic[8]={'C','N','C','C','H','N','0','3'};
 const char branchChainMagic[8]={'C','N','C','C','H','N','0','2'};
 const char oldChainMagic[8]={'C','N','C','C','H','N','0','1'};
 std::vector<TARGET> oldChainPower;
@@ -337,6 +339,58 @@ void Campaign_SAM_Chain_Reset() { samChains.clear();oldChainPower.clear(); }
 void Campaign_SAM_Chain_Forget(BulletClass* bullet)
 {
     if (bullet) samChains.erase(Build_Target(KIND_BULLET,Bullets.ID(bullet)));
+}
+namespace {
+std::vector<TechnoClass*> SAM_Density_Targets(BuildingClass const* sam)
+{
+    std::vector<TechnoClass*> targets;
+    if(!Campaign_SAM_Ground(sam) || !sam->IsActive || sam->IsInLimbo || sam->Strength<=0)return targets;
+    auto consider=[&](TechnoClass* unit){
+        if(!unit->IsActive || unit->IsInLimbo || unit->Strength<=0 || !unit->House
+            || unit->House==sam->House || unit->House->Class->House==HOUSE_NEUTRAL
+            || sam->House->Is_Ally(unit->House) || unit->House->Is_Ally(sam->House)
+            || !unit->Techno_Type_Class()->IsLegalTarget || unit->Is_Cloaked(sam->House)
+            || (!unit->IsDiscoveredByPlayer && unit->What_Am_I()!=RTTI_AIRCRAFT)
+            || !Map.In_Radar(Coord_Cell(unit->Coord))
+            || !sam->In_Range(unit->Target_Coord(),0))return;
+        targets.push_back(unit);
+    };
+    for(int i=0;i<Units.Count();++i)consider(Units.Ptr(i));
+    for(int i=0;i<Infantry.Count();++i)consider(Infantry.Ptr(i));
+    for(int i=0;i<Aircraft.Count();++i)consider(Aircraft.Ptr(i));
+    return targets;
+}
+int SAM_Density_Shot_Count(unsigned count)
+{
+    int shots=1;
+    for(unsigned threshold=10;count>=threshold;threshold*=2)++shots;
+    return shots;
+}
+}
+int Campaign_SAM_Density_Shots(BuildingClass const* sam)
+{
+    return SAM_Density_Shot_Count(SAM_Density_Targets(sam).size());
+}
+void Campaign_SAM_Density_Volley(BulletClass* root)
+{
+    if(!root || *root!=BULLET_SAM || !Campaign_SAM_Ground(root->Payback))return;
+    auto sam=static_cast<BuildingClass*>(root->Payback);
+    auto targets=SAM_Density_Targets(sam);
+    int extras=SAM_Density_Shot_Count(targets.size())-1;
+    if(!extras)return;
+    std::stable_sort(targets.begin(),targets.end(),[sam](TechnoClass* a,TechnoClass* b){
+        return sam->Distance(a)<sam->Distance(b);
+    });
+    // Spawn extra roots only here, never from Chain_Start/Impact: ricochets cannot multiply volleys.
+    int chosen=0;
+    for(auto target:targets){
+        if(target->As_Target()==sam->TarCom)continue;
+        auto extra=new BulletClass(BULLET_SAM);if(!extra)break;
+        extra->Assign_Target(target->As_Target());extra->Strength=root->Strength;extra->Payback=sam;
+        if(!extra->Unlimbo(root->Coord,root->PrimaryFacing.Current())){delete extra;continue;}
+        extra->Strength=root->Strength;Campaign_SAM_Chain_Start(extra);
+        if(++chosen>=extras)break;
+    }
 }
 void Campaign_SAM_Chain_Start(BulletClass* bullet)
 {
@@ -430,7 +484,7 @@ bool Campaign_SAM_Chain_Save(FileClass& file)
     if (file.Write(chainMagic,8)!=8 || file.Write(&count,sizeof(count))!=sizeof(count)) return false;
     for (auto const& entry:samChains) {
         auto const& c=entry.second;
-        std::uint32_t data[5+samBounceLimit+1]={std::uint32_t(entry.first),c.remaining,c.rawDamage,std::uint32_t(c.owner),c.count};
+        std::uint32_t data[5+samHistoryCapacity]={std::uint32_t(entry.first),c.remaining,c.rawDamage,std::uint32_t(c.owner),c.count};
         for (unsigned j=0;j<c.visited.size();++j) data[5+j]=c.visited[j];
         if (file.Write(data,sizeof(data))!=sizeof(data)) return false;
     }
@@ -442,17 +496,18 @@ bool Campaign_SAM_Chain_Load(FileClass& file)
     if (!n) return true;
     bool legacyPower=n==8 && !std::memcmp(header,oldChainMagic,8);
     bool legacy=legacyPower || (n==8 && !std::memcmp(header,branchChainMagic,8));
-    if (n!=8 || (!legacy && std::memcmp(header,chainMagic,8))) return false;
+    bool ten=n==8 && !std::memcmp(header,tenChainMagic,8);
+    if (n!=8 || (!legacy && !ten && std::memcmp(header,chainMagic,8))) return false;
     std::uint32_t count;
     if (file.Read(&count,sizeof(count))!=sizeof(count)||count>BULLET_MAX) return false;
     for (unsigned i=0;i<count;++i) {
-        std::uint32_t data[5+samBounceLimit+1]{};
-        unsigned words=legacy?8:5+samBounceLimit+1,history=words-5;
-        unsigned bytes=words*sizeof(data[0]),limit=legacy?2:samBounceLimit;
+        std::uint32_t data[5+samHistoryCapacity]{};
+        unsigned words=legacy?8:5+samHistoryCapacity,history=words-5;
+        unsigned bytes=words*sizeof(data[0]),limit=legacy?2:(ten?10:samBounceLimit);
         if (file.Read(data,bytes)!=bytes) return false;
         if (Target_Kind(data[0])!=KIND_BULLET||Target_Value(data[0])>=BULLET_MAX||samChains.count(data[0])
             || data[1]>limit||data[2]>32767||data[3]>=HOUSE_COUNT||data[4]>limit||data[1]+data[4]!=limit) return false;
-        SAMChain chain;chain.remaining=legacy?samBounceLimit-data[4]:data[1];chain.rawDamage=data[2];chain.owner=HousesType(data[3]);chain.count=data[4];
+        SAMChain chain;chain.count=MIN(data[4],samBounceLimit);chain.remaining=samBounceLimit-chain.count;chain.rawDamage=data[2];chain.owner=HousesType(data[3]);
         for (unsigned j=0;j<history;++j) {chain.visited[j]=data[5+j];if (j<chain.count && data[5+j]!=TARGET_NONE && !Is_Target_Unit(data[5+j]) && !Is_Target_Infantry(data[5+j]) && !Is_Target_Aircraft(data[5+j]) && !Is_Target_Building(data[5+j])) return false;}
         if (legacyPower) {
             chain.rawDamage=MIN(chain.rawDamage*2,32767u);

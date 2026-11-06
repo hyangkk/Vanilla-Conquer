@@ -2411,6 +2411,7 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
             bullet->Payback = this;
             bullet->Strength = (short)firepower;
             Campaign_SAM_Chain_Start(bullet);
+            Campaign_SAM_Density_Volley(bullet);
         } else {
             delete bullet;
         }
@@ -2932,7 +2933,7 @@ int TechnoClass::Weapon_Range(int which) const
             return (Weapons[weapon].Range * 3);
         }
         if (weapon == WEAPON_NIKE && Campaign_SAM_Ground(this)) {
-            return (Weapons[weapon].Range * 6);
+            return (20 * ICON_LEPTON_W);
         }
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
             return (Weapons[weapon].Range * 2);

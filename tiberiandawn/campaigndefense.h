@@ -35,6 +35,8 @@ inline int Campaign_Defense_Rearm_Delay(TechnoClass const* object,int ticks,bool
     return Campaign_Defense_Targets_Buildings(object) ? MAX(1,(ticks+(roundUp?1:0))/2) : ticks;
 }
 void Campaign_SAM_Chain_Start(BulletClass* bullet);
+int Campaign_SAM_Density_Shots(BuildingClass const* sam);
+void Campaign_SAM_Density_Volley(BulletClass* root);
 bool Campaign_SAM_Chain_Impact(BulletClass* bullet,TechnoClass* target);
 void Campaign_SAM_Chain_Forget(BulletClass* bullet);
 void Campaign_SAM_Chain_Reset();
