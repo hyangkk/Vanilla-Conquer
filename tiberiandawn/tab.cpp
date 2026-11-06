@@ -81,6 +81,8 @@ TabClass::TabClass(void)
  *=============================================================================================*/
 void TabClass::Draw_It(bool complete)
 {
+    // Restore the world pixels before any incremental terrain/scroll blit reads HidPage.
+    EnemyFusion::Restore_Counts();
 
     SidebarClass::Draw_It(complete);
 

@@ -4,6 +4,7 @@
 #include "campaignenemies.h"
 #include "campaigndefense.h"
 #include "siegetank.h"
+#include "common/renderlayers.h"
 #include <map>
 #include <vector>
 #include <set>
@@ -14,9 +15,21 @@ namespace {
 std::map<TARGET, unsigned> tiers;
 const char magic[8]={'C','N','C','F','U','S','0','1'};
 Counts lastCounts;
+std::vector<unsigned char> counterUnderlay;
+int underlayX=0,underlayY=0,underlayWidth=0,underlayHeight=0;
+std::uintptr_t underlayCanvas=0;
 const unsigned maxTier=5;
 const unsigned legacyMaxTier=15;
 const unsigned fusionCount=5;
+const int counterInset=6,counterWidth=130,counterHeight=24+(maxTier+1)*18;
+bool Counter_Visible(){
+    return GameActive && !ScenarioInit && GameToPlay==GAME_NORMAL && PlayerPtr && PlayerPtr->IsHuman && !Debug_Map
+        && LogicPage && WindowList[WINDOW_TACTICAL][WINDOWWIDTH]>=counterWidth+2*counterInset
+        && WindowList[WINDOW_TACTICAL][WINDOWHEIGHT]>=counterHeight+2*counterInset
+        && WindowList[WINDOW_TACTICAL][WINDOWX]>=0 && WindowList[WINDOW_TACTICAL][WINDOWY]>=0
+        && WindowList[WINDOW_TACTICAL][WINDOWX]+counterInset+counterWidth<=LogicPage->Get_Width()
+        && WindowList[WINDOW_TACTICAL][WINDOWY]+counterInset+counterHeight<=LogicPage->Get_Height();
+}
 bool Mobile(ObjectClass const* o) {
     return o && (o->What_Am_I()==RTTI_UNIT || o->What_Am_I()==RTTI_INFANTRY || o->What_Am_I()==RTTI_AIRCRAFT);
 }
@@ -62,34 +75,60 @@ Counts Count_Units() {
     for(int i=0;i<Aircraft.Count();++i)count(Aircraft.Ptr(i));
     return result;
 }
+void Restore_Counts() {
+#ifndef REMASTER_BUILD
+    if(LogicPage!=&HidPage || counterUnderlay.empty())return;
+    if(HidPage.Get_Width()==underlayWidth && HidPage.Get_Height()==underlayHeight && HidPage.Lock()){
+        auto pixels=reinterpret_cast<unsigned char*>(HidPage.Get_Offset());
+        const int pitch=HidPage.Get_Width()+HidPage.Get_XAdd()+HidPage.Get_Pitch();
+        if(reinterpret_cast<std::uintptr_t>(pixels)==underlayCanvas)
+            for(int y=0;y<counterHeight;++y)
+                std::memcpy(pixels+(underlayY+y)*pitch+underlayX,counterUnderlay.data()+y*counterWidth,counterWidth);
+        HidPage.Unlock();
+    }
+    counterUnderlay.clear();
+#endif
+}
 void Draw_Counts() {
 #ifndef REMASTER_BUILD
-    if(!GameActive || ScenarioInit || GameToPlay!=GAME_NORMAL || !PlayerPtr || !PlayerPtr->IsHuman || Debug_Map)return;
+    Restore_Counts();
+    if(!Counter_Visible())return;
     auto counts=Count_Units();
-    const int rows=maxTier+1;
-    const int x=WindowList[WINDOW_TACTICAL][WINDOWX]+6;
-    const int y=WindowList[WINDOW_TACTICAL][WINDOWY]+6;
-    const int width=130,height=24+rows*12;
-    if(WindowList[WINDOW_TACTICAL][WINDOWWIDTH]<width+12)return;
+    const int x=WindowList[WINDOW_TACTICAL][WINDOWX]+counterInset;
+    const int y=WindowList[WINDOW_TACTICAL][WINDOWY]+counterInset;
+    const int width=counterWidth,height=counterHeight;
     if(!LogicPage->Lock())return;
+    if(LogicPage==&HidPage){
+        auto pixels=reinterpret_cast<const unsigned char*>(HidPage.Get_Offset());
+        const int pitch=HidPage.Get_Width()+HidPage.Get_XAdd()+HidPage.Get_Pitch();
+        counterUnderlay.resize(width*height);
+        for(int row=0;row<height;++row)
+            std::memcpy(counterUnderlay.data()+row*width,pixels+(y+row)*pitch+x,width);
+        underlayX=x;underlayY=y;underlayWidth=HidPage.Get_Width();underlayHeight=HidPage.Get_Height();
+        underlayCanvas=reinterpret_cast<std::uintptr_t>(pixels);
+    }
     LogicPage->Fill_Rect(x,y,x+width-1,y+height-1,BLACK);
     LogicPage->Draw_Rect(x,y,x+width-1,y+height-1,GREY);
     auto flags=TPF_6POINT|TPF_NOSHADOW;
     Fancy_Text_Print("ENEMY UNITS",x+6,y+4,LTGREY,TBLACK,flags);
     int row=0;
     for(unsigned tier=0;tier<=maxTier;++tier){
-        int top=y+21+row++*12;
+        int top=y+21+row++*18;
         if(!tier)Fancy_Text_Print("NORMAL",x+6,top,WHITE,TBLACK,flags);
         else Fancy_Text_Print("LEVEL %d",x+6,top,WHITE,TBLACK,flags,int(tier));
         Fancy_Text_Print("%d",x+width-7,top,YELLOW,TBLACK,flags|TPF_RIGHT,counts[tier]);
     }
+    // Hardware fills bypass rasterizer coverage. Keep the entire panel opaque
+    // even where its black pixels equal the previous world pixels.
+    const int pitch=LogicPage->Get_Width()+LogicPage->Get_XAdd()+LogicPage->Get_Pitch();
+    RenderLayers::Mark(reinterpret_cast<const unsigned char*>(LogicPage->Get_Offset())+y*pitch+x,width,height,pitch);
     LogicPage->Unlock();
 #endif
 }
 int Health(ObjectClass const* object,int base) {return int(std::min(std::int64_t(32767),std::int64_t(base)*Multiplier(object)));}
 int Firepower(TechnoClass const* object,int base) {return Health(object,base);}
 void Forget(ObjectClass const* object) {if(Mobile(object))tiers.erase(object->As_Target());}
-void Reset(){tiers.clear();lastCounts.fill(-1);}
+void Reset(){counterUnderlay.clear();tiers.clear();lastCounts.fill(-1);}
 void Redraw(){
     auto counts=Count_Units();
     if(!tiers.empty() || counts!=lastCounts)Map.Flag_To_Redraw(true);
