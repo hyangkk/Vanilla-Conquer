@@ -88,6 +88,17 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+
+/*
+**	Custom build: a "gunship" is an armed, human-owned helicopter. Gunships have unlimited ammunition,
+**	double weapon range (see TechnoClass::Weapon_Range), twice the attack rate, never land on their own
+**	(they hover where they stop instead of returning to a helipad) and automatically engage every
+**	kind of enemy within weapon range while hovering.
+*/
+static bool Tib4x_Gunship(AircraftClass const* a)
+{
+    return a->House && a->House->IsHuman && !a->Class->IsFixedWing && a->Class->Primary != WEAPON_NONE;
+}
 #include "ccini.h"
 
 /***********************************************************************************************
@@ -106,6 +117,7 @@
  *   08/09/1995 BRR : Created.                                                                 *
  *=============================================================================================*/
 #ifdef CHEAT_KEYS
+
 int AircraftClass::Validate(void) const
 {
     int num;
@@ -719,6 +731,9 @@ int AircraftClass::Mission_Hunt(void)
 void AircraftClass::AI(void)
 {
     Validate();
+    if (Tib4x_Gunship(this) && Class->MaxAmmo > 0 && Ammo < Class->MaxAmmo) {
+        Ammo = Class->MaxAmmo;
+    }
     /*
     **	A Mission change can always occur if the aircraft is landed or flying.
     */
@@ -1747,7 +1762,9 @@ int AircraftClass::Mission_Move(void)
         if (!Target_Legal(NavCom)) {
             Enter_Idle_Mode();
         } else {
-            if (!Is_LZ_Clear(NavCom) || !Cell_Seems_Ok(As_Cell(NavCom))) {
+            if (Tib4x_Gunship(this)) {
+                Status = TAKE_OFF;
+            } else if (!Is_LZ_Clear(NavCom) || !Cell_Seems_Ok(As_Cell(NavCom))) {
                 Assign_Destination(New_LZ(NavCom));
             } else {
                 Status = TAKE_OFF;
@@ -1781,6 +1798,17 @@ int AircraftClass::Mission_Move(void)
     **	Fly toward target.
     */
     case FLY_TO_LZ:
+        if (Tib4x_Gunship(this)) {
+            int distance = Process_Fly_To(true);
+            if (distance < 0x0010) {
+                Set_Speed(0);
+                Assign_Destination(TARGET_NONE);
+                Enter_Idle_Mode();
+                return (1);
+            }
+            SecondaryFacing.Set_Desired(::Direction(Fire_Coord(0), As_Coord(NavCom)));
+            return (1);
+        }
         if (Is_LZ_Clear(NavCom)) {
             int distance = Process_Fly_To(true);
 
@@ -1890,7 +1918,10 @@ void AircraftClass::Enter_Idle_Mode(bool)
                 }
             }
 
-            if (Class->Primary != WEAPON_NONE) {
+            if (Tib4x_Gunship(this)) {
+                Assign_Destination(TARGET_NONE);
+                mission = MISSION_GUARD;
+            } else if (Class->Primary != WEAPON_NONE) {
 
                 /*
                 **	Weapon equipped helicopters that run out of ammo and were
@@ -2454,7 +2485,7 @@ int AircraftClass::Mission_Attack(void)
         break;
     }
 
-    return (TICKS_PER_SECOND / 2);
+    return (Tib4x_Gunship(this) ? (TICKS_PER_SECOND / 4) : (TICKS_PER_SECOND / 2));
 }
 
 /***********************************************************************************************
@@ -3294,6 +3325,9 @@ void AircraftClass::Scatter(COORDINATE, bool, bool)
 int AircraftClass::Rearm_Delay(bool second) const
 {
     Validate();
+    if (Tib4x_Gunship(this)) {
+        return (MAX(1, FootClass::Rearm_Delay(second) / 4));
+    }
     return (FootClass::Rearm_Delay(second) / 2);
 }
 
@@ -3325,6 +3359,9 @@ int AircraftClass::Threat_Range(int control) const
         return (-1);
 
     int range = 20 * ICON_LEPTON_W;
+    if (Tib4x_Gunship(this)) {
+        range = Weapon_Range(0);
+    }
     if (control == 1) {
         range *= 2;
     }
@@ -3349,6 +3386,16 @@ int AircraftClass::Threat_Range(int control) const
 int AircraftClass::Mission_Guard(void)
 {
     Validate();
+    if (Tib4x_Gunship(this) && !IsLanding && !IsTakingOff) {
+        if (Altitude == FLIGHT_LEVEL) {
+            Set_Speed(0);
+        }
+        if (Target_Something_Nearby(THREAT_RANGE)) {
+            Assign_Mission(MISSION_ATTACK);
+            return (1);
+        }
+        return (TICKS_PER_SECOND / 3);
+    }
     if (Altitude == FLIGHT_LEVEL) {
 
         /*
@@ -3467,6 +3514,9 @@ int AircraftClass::Mission_Guard(void)
 int AircraftClass::Mission_Guard_Area(void)
 {
     Validate();
+    if (Tib4x_Gunship(this)) {
+        return (Mission_Guard());
+    }
     if (Altitude == FLIGHT_LEVEL) {
         Enter_Idle_Mode();
         return (1);

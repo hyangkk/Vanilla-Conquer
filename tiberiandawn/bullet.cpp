@@ -506,7 +506,17 @@ void BulletClass::Draw_It(int x, int y, WindowNumberType window)
     **	If there is no shape loaded for this object, then
     **	it obviously can't be rendered -- just bail.
     */
-    void const* shapeptr = Class->Get_Image_Data();
+    /*
+    **	Custom build: rockets fired by human-owned helicopters use the SAM missile artwork.
+    **	Only the look changes; flight, damage and targeting stay those of the original rocket.
+    */
+    BulletTypeClass const* look = Class;
+    if (*this == BULLET_TOW && Payback && Payback->IsActive && Payback->What_Am_I() == RTTI_AIRCRAFT
+        && Payback->House && Payback->House->IsHuman) {
+        look = &BulletTypeClass::As_Reference(BULLET_SAM);
+    }
+
+    void const* shapeptr = look->Get_Image_Data();
     if (!shapeptr)
         return;
 
@@ -550,7 +560,7 @@ void BulletClass::Draw_It(int x, int y, WindowNumberType window)
     **	Draw the main body of the projectile.
     */
     ShapeFlags_Type flags = SHAPE_NORMAL;
-    if (Class->IsTranslucent) {
+    if (look->IsTranslucent) {
         flags = SHAPE_GHOST;
     }
     CC_Draw_Shape(this, shapeptr, shapenum, x, y, window, flags | SHAPE_CENTER | SHAPE_WIN_REL, NULL, Map.UnitShadow);

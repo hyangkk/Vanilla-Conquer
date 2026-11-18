@@ -1421,7 +1421,11 @@ bool TechnoClass::Evaluate_Object(ThreatType method, int mask, int range, Techno
     **	SPECIAL CASE: Friendly units won't automatically fire on buildings
     **	if the building is not aggressive.
     */
-    if (House->IsHuman && otype == RTTI_BUILDING && tclass->Primary == WEAPON_NONE)
+    /*
+    **	Custom build: human players also auto-target unarmed buildings, as long as they
+    **	belong to a hostile (non-neutral) house. Civilian structures are still ignored.
+    */
+    if (House->IsHuman && otype == RTTI_BUILDING && tclass->Primary == WEAPON_NONE && object->Owner() == HOUSE_NEUTRAL)
         return (false);
 
     /*
@@ -1598,6 +1602,74 @@ bool TechnoClass::Evaluate_Cell(ThreatType method,
  *   11/14/1994 JLB : Created.                                                                 *
  *   06/20/1995 JLB : Greatly optimized scan method.                                           *
  *=============================================================================================*/
+/*
+**	Custom build: hostile wall detection for human auto-targeting.
+**	Walls placed by a house carry its ownership. Walls placed by the scenario carry none, so they
+**	count as hostile when the nearest structure (within five cells) belongs to a hostile house.
+*/
+static bool Tib4x_Wall_Is_Hostile(TechnoClass const* self, CELL cell)
+{
+    CellClass& c = Map[cell];
+    if (c.Overlay == OVERLAY_NONE || !OverlayTypeClass::As_Reference(c.Overlay).IsWall)
+        return false;
+    if (!c.Is_Mapped(self->House))
+        return false;
+    if (c.Owner != HOUSE_NONE) {
+        HouseClass* owner = HouseClass::As_Pointer(c.Owner);
+        return owner && c.Owner != HOUSE_NEUTRAL && !self->House->Is_Ally(owner);
+    }
+    BuildingClass const* nearest = NULL;
+    int best = 5 * CELL_LEPTON_W + 1;
+    COORDINATE where = Cell_Coord(cell);
+    for (int i = 0; i < Buildings.Count(); i++) {
+        BuildingClass const* b = Buildings.Ptr(i);
+        if (!b || b->IsInLimbo)
+            continue;
+        int d = Distance(where, b->Center_Coord());
+        if (d < best) {
+            best = d;
+            nearest = b;
+        }
+    }
+    return nearest && nearest->Owner() != HOUSE_NEUTRAL && !self->House->Is_Ally(nearest);
+}
+
+static CELL Tib4x_Find_Hostile_Wall(TechnoClass const* self)
+{
+    TechnoTypeClass const* type = self->Techno_Type_Class();
+    if (type->Primary == WEAPON_NONE)
+        return -1;
+    WarheadTypeClass const& head = Warheads[BulletTypeClass::As_Reference(Weapons[type->Primary].Fires).Warhead];
+    if (!head.IsWallDestroyer && !head.IsWoodDestroyer)
+        return -1;
+    int range = self->Weapon_Range(0);
+    int crange = range / CELL_LEPTON_W + 1;
+    COORDINATE center = self->Center_Coord();
+    CELL here = Coord_Cell(center);
+    CELL bestcell = -1;
+    int best = range + 1;
+    for (int dy = -crange; dy <= crange; dy++) {
+        for (int dx = -crange; dx <= crange; dx++) {
+            int x = Cell_X(here) + dx, y = Cell_Y(here) + dy;
+            if (x < Map.MapCellX || y < Map.MapCellY || x >= Map.MapCellX + Map.MapCellWidth
+                || y >= Map.MapCellY + Map.MapCellHeight)
+                continue;
+            CELL cell = XY_Cell(x, y);
+            CellClass& c = Map[cell];
+            if (c.Overlay == OVERLAY_NONE || !OverlayTypeClass::As_Reference(c.Overlay).IsWall)
+                continue;
+            if (!head.IsWallDestroyer && !OverlayTypeClass::As_Reference(c.Overlay).IsWooden)
+                continue;
+            int d = Distance(center, Cell_Coord(cell));
+            if (d < best && Tib4x_Wall_Is_Hostile(self, cell)) {
+                best = d;
+                bestcell = cell;
+            }
+        }
+    }
+    return bestcell;
+}
+
 TARGET TechnoClass::Greatest_Threat(ThreatType method) const
 {
     ObjectClass const* bestobject = NULL;
@@ -1830,6 +1902,17 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
 
         return (bestobject->As_Target());
     }
+
+    /*
+    **	Custom build: with no unit or structure to shoot at, human-owned objects that can damage
+    **	walls pick the nearest hostile wall within weapon range.
+    */
+    if (House->IsHuman && (method & (THREAT_RANGE | THREAT_AREA))) {
+        CELL wall = Tib4x_Find_Hostile_Wall(this);
+        if (wall != -1) {
+            return (::As_Target(wall));
+        }
+    }
     return (TARGET_NONE);
 }
 
@@ -1904,6 +1987,17 @@ void TechnoClass::AI(void)
     CargoClass::AI();
     RadioClass::AI();
     DoorClass::AI();
+
+    /*
+    **	Custom build: an automatically chosen wall target is dropped once the wall is gone,
+    **	so guarding units do not keep firing at empty ground. Explicit attack orders are untouched.
+    */
+    if (House && House->IsHuman && Is_Target_Cell(TarCom) && (Mission == MISSION_GUARD || Mission == MISSION_GUARD_AREA)) {
+        CellClass& tc = Map[As_Cell(TarCom)];
+        if (tc.Overlay == OVERLAY_NONE || !OverlayTypeClass::As_Reference(tc.Overlay).IsWall) {
+            Assign_Target(TARGET_NONE);
+        }
+    }
 
     /*
     **	Custom build: everything owned by a human player (infantry, vehicles,
@@ -2902,10 +2996,17 @@ int TechnoClass::Weapon_Range(int which) const
         break;
     }
     if (weapon != WEAPON_NONE) {
+        int range = Weapons[weapon].Range;
         if (weapon == WEAPON_NIKE && GameToPlay == GAME_NORMAL) {
-            return (Weapons[weapon].Range * 2);
+            range *= 2;
         }
-        return (Weapons[weapon].Range);
+        /*
+        **	Custom build: human-owned helicopters have double weapon range.
+        */
+        if (What_Am_I() == RTTI_AIRCRAFT && House && House->IsHuman && !((AircraftClass const*)this)->Class->IsFixedWing) {
+            range *= 2;
+        }
+        return (range);
     }
     return (0);
 }
