@@ -1,3 +1,4 @@
+#include "renderlayers.h"
 // TiberianDawn.DLL and RedAlert.dll and corresponding source code is free
 // software: you can redistribute it and/or modify it under the terms of
 // the GNU General Public License as published by the Free Software Foundation,
@@ -145,6 +146,7 @@ void Buffer_Draw_Line(void* this_object, int sx, int sy, int dx, int dy, unsigne
 
         dx -= sx - 1;
         screen += sy * (vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch()) + sx;
+        RenderLayers::Mark(screen, dx, 1, vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch());
         memset(screen, color, dx);
 
         return;
@@ -165,6 +167,7 @@ void Buffer_Draw_Line(void* this_object, int sx, int sy, int dx, int dy, unsigne
         screen += sx;
 
         while (dy-- >= 0) {
+            RenderLayers::Mark(screen, 1, 1, vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch());
             *screen = color;
             screen += (vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch());
         }
@@ -183,6 +186,7 @@ void Buffer_Draw_Line(void* this_object, int sx, int sy, int dx, int dy, unsigne
         screen += sx;
 
         while (true) {
+            RenderLayers::Mark(screen, 1, 1, vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch());
             *screen = color;
 
             if (dy-- == 0) {
@@ -203,6 +207,7 @@ void Buffer_Draw_Line(void* this_object, int sx, int sy, int dx, int dy, unsigne
         screen += sx;
 
         while (true) {
+            RenderLayers::Mark(screen, 1, 1, vp.Get_XAdd() + vp.Get_Width() + vp.Get_Pitch());
             *screen = color;
 
             if (dx-- == 0) {

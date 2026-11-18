@@ -76,6 +76,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "smoothmotion.h"
 
 /*
 **	Selected objects have a special marking box around them. This is the shapes that are
@@ -276,8 +277,14 @@ void const* ObjectTypeClass::Get_Cameo_Data(void) const
  * HISTORY:                                                                                    *
  *   09/24/1994 JLB : Created.                                                                 *
  *=============================================================================================*/
+ObjectClass::~ObjectClass(void)
+{
+    Smooth_Motion_Forget(this);
+}
+
 ObjectClass::ObjectClass(void)
 {
+    Smooth_Motion_Forget(this);
     Coord = 0xFFFFFFFF; // Some bogus illegal value.
     Next = 0;           // Not part of any object list.
     Trigger = 0;        // No associated trigger.
@@ -960,7 +967,9 @@ bool ObjectClass::Render(bool forced)
             /*
             **	Draw the object itself
             */
+            Smooth_Motion_Object_Begin(this, coord);
             Draw_It(x, y, WINDOW_TACTICAL);
+            Smooth_Motion_Object_End();
 
 #ifdef SCENARIO_EDITOR
             /*
