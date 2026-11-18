@@ -1456,6 +1456,13 @@ bool TechnoClass::Evaluate_Object(ThreatType method, int mask, int range, Techno
     */
     int rawval = object->Value();
     value = rawval + object->Kills;
+    /*
+    **	Custom build: for human players unarmed enemy structures are a last resort, so any armed
+    **	enemy in range is preferred over them.
+    */
+    if (House->IsHuman && otype == RTTI_BUILDING && tclass->Primary == WEAPON_NONE) {
+        value = 1;
+    }
 
 #ifdef USE_RA_AI
     /*
@@ -1904,10 +1911,11 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
     }
 
     /*
-    **	Custom build: with no unit or structure to shoot at, human-owned objects that can damage
-    **	walls pick the nearest hostile wall within weapon range.
+    **	Custom build: with no unit or structure to shoot at, human-owned objects that scan for
+    **	ground structures (not anti-air-only SAM sites) and can damage walls pick the nearest
+    **	hostile wall within weapon range.
     */
-    if (House->IsHuman && (method & (THREAT_RANGE | THREAT_AREA))) {
+    if (House->IsHuman && (method & (THREAT_RANGE | THREAT_AREA)) && (method & THREAT_BUILDINGS)) {
         CELL wall = Tib4x_Find_Hostile_Wall(this);
         if (wall != -1) {
             return (::As_Target(wall));
@@ -4385,9 +4393,27 @@ void TechnoClass::Response_Sabotage(void)
  * HISTORY:                                                                                    *
  *   07/29/1995 JLB : Created.                                                                 *
  *=============================================================================================*/
+/*
+**	Custom build: a "fallback" target is an unarmed enemy structure or a wall cell. Human-owned
+**	objects shooting at one switch to an armed enemy as soon as one is available.
+*/
+static bool Tib4x_Fallback_Target(TARGET target)
+{
+    if (Is_Target_Cell(target))
+        return true;
+    TechnoClass const* techno = As_Techno(target);
+    return techno && techno->What_Am_I() == RTTI_BUILDING && techno->Techno_Type_Class()->Primary == WEAPON_NONE;
+}
+
 bool TechnoClass::Target_Something_Nearby(ThreatType threat)
 {
     threat = threat & (THREAT_RANGE | THREAT_AREA);
+    if (House->IsHuman && Target_Legal(TarCom) && Tib4x_Fallback_Target(TarCom)) {
+        TARGET better = Greatest_Threat(threat);
+        if (Target_Legal(better) && better != TarCom && !Tib4x_Fallback_Target(better)) {
+            Assign_Target(better);
+        }
+    }
 
     /*
     **	Determine that if there is an existing target it is still legal
