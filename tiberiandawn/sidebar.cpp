@@ -341,17 +341,18 @@ void SidebarClass::Init_IO(void)
             ShapeButtonClass* SBCUpgrade = (ShapeButtonClass*)Upgrade;
             ShapeButtonClass* SBCZoom = (ShapeButtonClass*)Zoom;
 
-            Repair->X = 484;
+            // Custom build: anchor to the sidebar so wider game canvases keep the buttons in place.
+            Repair->X = SideX + 4;
             Repair->Y = 160;
             SBCRepair->ReflectButtonState = true;
             SBCRepair->Set_Shape(Hires_Retrieve(repair_shp));
 
-            Upgrade->X = 480 + 57;
+            Upgrade->X = SideX + 57;
             Upgrade->Y = 160;
             SBCUpgrade->ReflectButtonState = true;
             SBCUpgrade->Set_Shape(Hires_Retrieve(sell_shp));
 
-            Zoom->X = 480 + 110;
+            Zoom->X = SideX + 110;
             Zoom->Y = 160;
             SBCZoom->Set_Shape(Hires_Retrieve(map_shp));
         } else {

@@ -61,7 +61,11 @@ void Load_Title_Screen(const char* name, GraphicViewPortClass* video_page, unsig
     }
 
     if (load_buffer) {
-        load_buffer->Blit(*video_page);
+        video_page->Clear();
+        load_buffer->Blit(*video_page, 0, 0,
+                          (video_page->Get_Width() - load_buffer->Get_Width()) / 2,
+                          (video_page->Get_Height() - load_buffer->Get_Height()) / 2,
+                          load_buffer->Get_Width(), load_buffer->Get_Height());
         delete load_buffer;
     }
 }

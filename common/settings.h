@@ -29,6 +29,8 @@ public:
         std::string BoxingAspectRatio;
         int Width;
         int Height;
+        int GameWidth;
+        int GameHeight;
         int FrameLimit;
         int InterpolationMode;
         bool HardwareCursor;
