@@ -5500,35 +5500,8 @@ bool BuildingClass::Passes_Proximity_Check(CELL homecell)
     }
 
     /*
-    **	Scan through all cells that the building foundation would cover. If any adjacent
-    **	cells to these are of friendly persuasion, then consider the proximity check to
-    **	have been a success.
+    **	Custom build: use the same rule as the placement cursor (DisplayClass), so the
+    **	four-cell human placement distance is honoured when the placement event executes.
     */
-    short const* ptr = Occupy_List(true);
-    while (*ptr != REFRESH_EOL) {
-        CELL cell = homecell + *ptr++;
-
-        if (!Map.In_Radar(cell))
-            return (false);
-
-        for (FacingType facing = FACING_N; facing < FACING_COUNT; facing++) {
-            CELL newcell = Adjacent_Cell(cell, facing);
-
-            BuildingClass* base = Map[newcell].Cell_Building();
-
-            /*
-            **	The special cell ownership flag allows building adjacent
-            **	to friendly walls and bibs even though there is no official
-            **	building located there.
-            */
-            if (Map[newcell].Owner == House->Class->House) {
-                return (true);
-            }
-
-            if (base && base->House->Class->House == House->Class->House) {
-                return (true);
-            }
-        }
-    }
-    return (false);
+    return Map.Passes_Proximity_Check(Class, House->Class->House, Occupy_List(true), homecell);
 }
