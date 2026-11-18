@@ -106,6 +106,8 @@
 #include "defines.h"
 #include "common/irandom.h"
 #include "ccini.h"
+#include "campaigntech.h"
+#include "common/settings.h"
 #include "common/fixed.h"
 
 /***********************************************************************************************
@@ -548,9 +550,29 @@ HouseClass::HouseClass(HousesType house)
  *   07/04/1995 JLB : Created.                                                                 *
  *   08/12/1995 JLB : Updated for GDI building sandbag walls in #9.                            *
  *=============================================================================================*/
+/*
+**	Custom build (from the Smooth branch): the local human campaign player may build every normally
+**	buildable GDI/Nod unit and structure, ignoring faction, mission, tech level and prerequisites.
+**	A production facility of the matching category is still required. Story objects are excluded.
+*/
+bool Campaign_All_Tech(const HouseClass* house)
+{
+    return house && CampaignTech::Enabled(Settings.Options.CampaignAllTech, GameToPlay == GAME_NORMAL,
+        house == PlayerPtr, house->IsHuman,
+        house->Class->House == HOUSE_GOOD || house->Class->House == HOUSE_BAD);
+}
+
+bool Campaign_All_Tech_Type(const TechnoTypeClass* type, const HouseClass* house)
+{
+    return type && CampaignTech::Eligible(Campaign_All_Tech(house), type->IsBuildable,
+                                         (type->Ownable & (HOUSEF_GOOD | HOUSEF_BAD)) != 0, type->Level, type->Scenario);
+}
+
 bool HouseClass::Can_Build(TechnoTypeClass const* type, HousesType house) const
 {
     Validate();
+    if (Campaign_All_Tech_Type(type, this))
+        return true;
     if (!type || !type->IsBuildable || !((1L << house) & type->Ownable))
         return (false);
 

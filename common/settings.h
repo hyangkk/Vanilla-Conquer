@@ -45,6 +45,7 @@ public:
     struct
     {
         bool MouseWheelScrolling;
+        bool CampaignAllTech;
     } Options;
 };
 

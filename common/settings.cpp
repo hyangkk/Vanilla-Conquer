@@ -15,6 +15,7 @@ SettingsClass::SettingsClass()
     Mouse.ControllerEnabled = false;
     Mouse.ControllerPointerSpeed = 10;
     Options.MouseWheelScrolling = true;
+    Options.CampaignAllTech = true; // Custom build: every unit and building is always available.
 
     /*
     ** Video settings
@@ -53,6 +54,7 @@ void SettingsClass::Load(INIClass& ini)
     ** Compatibility with CNCNet configuration for this feature
     */
     Options.MouseWheelScrolling = ini.Get_Bool("Options", "MouseWheelScrolling", Options.MouseWheelScrolling);
+    Options.CampaignAllTech = ini.Get_Bool("Options", "CampaignAllTech", Options.CampaignAllTech);
     Options.MouseWheelScrolling = ini.Get_Bool("Mouse", "MouseWheelScrolling", Options.MouseWheelScrolling);
 
     /*
@@ -107,6 +109,7 @@ void SettingsClass::Save(INIClass& ini)
     ini.Put_Bool("Mouse", "ControllerEnabled", Mouse.ControllerEnabled);
     ini.Put_Int("Mouse", "ControllerPointerSpeed", Mouse.ControllerPointerSpeed);
     ini.Put_Bool("Mouse", "MouseWheelScrolling", Options.MouseWheelScrolling);
+    ini.Put_Bool("Options", "CampaignAllTech", Options.CampaignAllTech);
 
     /*
     ** Video settings

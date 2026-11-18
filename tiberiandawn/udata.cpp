@@ -45,6 +45,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 
 void const* UnitTypeClass::WakeShapes = 0;
 
@@ -1681,7 +1682,7 @@ BuildingClass* UnitTypeClass::Who_Can_Build_Me(bool intheory, bool legal, Houses
 
         if (building && !building->IsInLimbo && building->House->Class->House == house
             && building->Class->ToBuild == RTTI_UNITTYPE && building->Mission != MISSION_DECONSTRUCTION
-            && ((1L << building->ActLike) & Ownable) && (!legal || building->House->Can_Build(Type, building->ActLike))
+            && (((1L << building->ActLike) & Ownable) || Campaign_All_Tech_Type(this, building->House)) && (!legal || building->House->Can_Build(Type, building->ActLike))
             && (intheory || !building->In_Radio_Contact())) {
 
             if (building->IsLeader)
