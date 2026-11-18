@@ -223,7 +223,8 @@ int main(int argc, char** argv)
     /*
     **	Remember the current working directory and drive.
     */
-    Paths.Init("vanillatd", "CONQUER.INI", "CONQUER.MIX", args.ArgV[0]);
+    // Custom build keeps its own settings and saves (Application Support/Vanilla-Conquer/vanillatd-tib4x).
+    Paths.Init("vanillatd-tib4x", "CONQUER.INI", "CONQUER.MIX", args.ArgV[0]);
     CDFileClass::Refresh_Search_Drives();
 
     if (Parse_Command_Line(args.ArgC, args.ArgV)) {

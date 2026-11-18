@@ -885,29 +885,50 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
     **	cells to these are of friendly persuasion, then consider the proximity check to
     **	have been a success.
     */
+    /*
+    **	Custom build: human players may place structures up to four cells away from
+    **	friendly structures (the original rule is one cell, i.e. adjacent).
+    **	Computer players keep the original adjacency rule.
+    */
+    int radius = 1;
+    HouseClass const* owner = HouseClass::As_Pointer(house);
+    if (owner && owner->IsHuman) {
+        radius = 4;
+    }
+
     ptr = list;
     while (*ptr != REFRESH_EOL) {
         CELL cell = trycell + *ptr++;
 
-        for (FacingType facing = FACING_N; facing < FACING_COUNT; facing++) {
-            CELL newcell = Adjacent_Cell(cell, facing);
+        if (!In_Radar(cell))
+            return (false);
 
-            if (!In_Radar(cell))
-                return (false);
+        int cx = Cell_X(cell);
+        int cy = Cell_Y(cell);
+        for (int dy = -radius; dy <= radius; dy++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                if (dx == 0 && dy == 0)
+                    continue;
+                int nx = cx + dx;
+                int ny = cy + dy;
+                if (nx < 0 || ny < 0 || nx >= MAP_CELL_W || ny >= MAP_CELL_H)
+                    continue;
+                CELL newcell = XY_Cell(nx, ny);
 
-            TechnoClass* base = (*this)[newcell].Cell_Techno();
+                TechnoClass* base = (*this)[newcell].Cell_Techno();
 
-            /*
-            **	The special cell ownership flag allows building adjacent
-            **	to friendly walls and bibs even though there is no official
-            **	building located there.
-            */
-            if ((*this)[newcell].Owner == house) {
-                return (true);
-            }
+                /*
+                **	The special cell ownership flag allows building near
+                **	friendly walls and bibs even though there is no official
+                **	building located there.
+                */
+                if ((*this)[newcell].Owner == house) {
+                    return (true);
+                }
 
-            if (base && base->What_Am_I() == RTTI_BUILDING && base->House->Class->House == house) {
-                return (true);
+                if (base && base->What_Am_I() == RTTI_BUILDING && base->House->Class->House == house) {
+                    return (true);
+                }
             }
         }
     }

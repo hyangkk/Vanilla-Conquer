@@ -1906,6 +1906,20 @@ void TechnoClass::AI(void)
     DoorClass::AI();
 
     /*
+    **	Custom build: everything owned by a human player (infantry, vehicles,
+    **	aircraft and buildings) regenerates 2% of its maximum strength every
+    **	game second (at least 1 point), free of charge. Enemies do not.
+    */
+    if ((Frame % TICKS_PER_SECOND) == 0 && House && House->IsHuman && IsActive && !IsInLimbo && Strength > 0) {
+        int maximum = Class_Of().MaxStrength;
+        if (Strength < maximum) {
+            int step = MAX(1, maximum / 50);
+            Strength = MIN(maximum, Strength + step);
+            Mark(MARK_CHANGE);
+        }
+    }
+
+    /*
     ** Handle decision to re-cloak here. Process the cloaking/decloaking operation.
     */
     if (IsCloakable) {

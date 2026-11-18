@@ -1367,6 +1367,25 @@ void MapClass::Logic(void)
     }
 
     /*
+    **	Custom build: walls owned by a human player repair one damage level
+    **	every five seconds, free of charge. Destroyed walls are not rebuilt.
+    */
+    if ((Frame % (TICKS_PER_SECOND * 5)) == 0) {
+        for (CELL wc = 0; wc < MAP_CELL_TOTAL; wc++) {
+            CellClass& wcell = (*this)[wc];
+            if (wcell.Overlay == OVERLAY_NONE || wcell.OverlayData < 16 || wcell.Owner == HOUSE_NONE)
+                continue;
+            if (!OverlayTypeClass::As_Reference(wcell.Overlay).IsWall)
+                continue;
+            HouseClass* owner = HouseClass::As_Pointer(wcell.Owner);
+            if (!owner || !owner->IsHuman)
+                continue;
+            wcell.OverlayData -= 16;
+            wcell.Redraw_Objects();
+        }
+    }
+
+    /*
     **	Bail early if there is no allowed growth or spread of Tiberium.
     */
     if (!Special.IsTGrowth && !Special.IsTSpread)
@@ -1429,6 +1448,11 @@ void MapClass::Logic(void)
                 tries += (MPlayerTiberium - 1) << 1;
             }
         }
+        /*
+        **	Custom build: Tiberium grows and spreads four times as fast.
+        */
+        tries *= 4;
+
         TiberiumScan = 0;
         IsForwardScan = (IsForwardScan == false);
 
