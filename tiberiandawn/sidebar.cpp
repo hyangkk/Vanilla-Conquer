@@ -230,6 +230,95 @@ void SidebarClass::One_Time(void)
     }
 }
 
+/*
+**	Custom build: saved games store the radar, power bar and sidebar positions that were valid for
+**	the canvas they were made on. Recompute them for the current canvas (same arithmetic as the
+**	One_Time() chain) so loading a save at a different game resolution keeps the HUD on screen.
+*/
+void SidebarClass::Refit_Layout(void)
+{
+    int factor = Get_Resolution_Factor();
+    RadWidth = 80 << factor;
+    RadHeight = 70 << factor;
+    RadX = SeenBuff.Get_Width() - RadWidth;
+    RadY = Map.Get_Tab_Height() - (1 << factor);
+    RadPWidth = MAP_CELL_W << factor;
+    RadPHeight = MAP_CELL_H << factor;
+    if (factor) {
+        RadOffX = 16;
+        RadOffY = 7;
+        RadIWidth = 128;
+        RadIHeight = 128;
+    } else {
+        RadOffX = 4 << factor;
+        RadOffY = 1 << factor;
+        RadIWidth = 72 << factor;
+        RadIHeight = 69 << factor;
+    }
+    RadarButton.X = RadX + RadOffX;
+    RadarButton.Y = RadY + RadOffY;
+    RadarButton.Width = RadIWidth;
+    RadarButton.Height = RadIHeight;
+    if (MapCellWidth > 0 && MapCellHeight > 0) {
+        /*
+        **	Zoom_Mode() toggles the zoom state; calling it twice keeps the current state
+        **	while the radar scale is recomputed from the refitted radar size.
+        */
+        Zoom_Mode(Coord_Cell(TacticalCoord));
+        Zoom_Mode(Coord_Cell(TacticalCoord));
+    }
+
+    PowX = SeenBuff.Get_Width() - RadWidth;
+    if (factor) {
+        PowY = RadY + RadHeight + (13 << factor) - 4;
+    } else {
+        PowY = RadY + RadHeight + (13 << factor);
+    }
+    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY;
+    PowerButton.X = PowX;
+    PowerButton.Y = PowY;
+    PowerButton.Height = PowHeight;
+
+    int sfactor = (SeenBuff.Get_Width() == 320) ? 1 : 2;
+    SideBarWidth = SIDEBARWIDTH * sfactor;
+    SideX = SeenBuff.Get_Width() - SideBarWidth;
+    SideY = RadY + RadHeight + 1;
+    SideWidth = SeenBuff.Get_Width() - SideX;
+    SideHeight = SeenBuff.Get_Height() - SideY;
+    ButtonHeight = 9 * sfactor;
+    TopHeight = ButtonHeight + (4 * sfactor);
+    Background.X = SideX + 8 * sfactor;
+    Background.Y = SideY;
+    Background.Width = SideWidth - 1;
+    Background.Height = SideHeight - 1;
+    WindowList[WINDOW_SIDEBAR][WINDOWX] = SideX + PowWidth;
+    WindowList[WINDOW_SIDEBAR][WINDOWY] = SideY + TopHeight;
+    WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = SideWidth;
+    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (MaxVisible * (StripClass::OBJECT_HEIGHT * sfactor));
+    if (sfactor == 1) {
+        WindowList[WINDOW_SIDEBAR][WINDOWY] += 1;
+        WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] -= 1;
+    }
+    int width = (SideWidth - PowWidth) - (((StripClass::STRIP_WIDTH) * sfactor) << 1);
+    int spacing = width / 3;
+    Column[0].X = SideX + PowWidth + spacing;
+    Column[0].Y = SideY + TopHeight + 1;
+    Column[1].X = Column[0].X + (StripClass::STRIP_WIDTH * sfactor) + spacing - 1;
+    Column[1].Y = SideY + TopHeight + 1;
+    Column[0].Refit_Layout();
+    Column[1].Refit_Layout();
+}
+
+void SidebarClass::StripClass::Refit_Layout(void)
+{
+    int factor = Get_Resolution_Factor();
+    ObjectWidth = OBJECT_WIDTH << factor;
+    ObjectHeight = OBJECT_HEIGHT << factor;
+    StripWidth = STRIP_WIDTH << factor;
+    LeftEdgeOffset = (StripWidth - ObjectWidth) >> 1;
+    ButtonSpacingOffset = (StripWidth - ((BUTTON_WIDTH << factor) << 1)) / 3;
+}
+
 /***********************************************************************************************
  * SidebarClass::Init_Clear -- Sets sidebar to a known (and deactivated) state                 *
  *                                                                                             *
@@ -289,6 +378,7 @@ void SidebarClass::Init_IO(void)
 
     void* oldfont;
     int oldx;
+    Refit_Layout();
     PowerClass::Init_IO();
 
     if (Get_Resolution_Factor()) {
@@ -420,6 +510,12 @@ void SidebarClass::Init_IO(void)
             Activate(1);
             //			Background.Zap();
             //			Add_A_Button(Background);
+        } else {
+            /*
+            **	Saves carry the tactical view size they were made with. Re-fit it to the
+            **	current game canvas so a larger canvas is fully redrawn (and shrouded).
+            */
+            Set_View_Dimensions(0, Map.Get_Tab_Height());
         }
     }
 }

@@ -123,6 +123,7 @@ public:
     virtual void One_Time(void);                    // One-time inits
     virtual void Init_Clear(void);                  // Clears all to known state
     virtual void Init_IO(void);                     // Inits button list
+    void Refit_Layout(void);                        // Re-fit radar/power/sidebar positions to the current canvas
     virtual void Init_Theater(TheaterType theater); // Theater-specific inits
 
     virtual void AI(KeyNumType& input, int x, int y);
@@ -186,6 +187,7 @@ public:
         bool AI(KeyNumType& input, int x, int y);
         void Draw_It(bool complete);
         void One_Time(int id);
+        void Refit_Layout(void);
         void Init_Clear(void);
         void Init_IO(int id);
         void Init_Theater(TheaterType theater);
