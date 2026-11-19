@@ -296,11 +296,7 @@ int main(int argc, char** argv)
             ScreenWidth = 320;
             ScreenHeight = 200;
         } else {
-            /*
-            **	Custom build: the canvas is 20% of the sidebar width (32 pixels) wider than the
-            **	displayed width; the video layer shows the sidebar that much narrower in game.
-            */
-            ScreenWidth = Settings.Video.GameWidth + 32;
+            ScreenWidth = Settings.Video.GameWidth;
             ScreenHeight = Settings.Video.GameHeight;
         }
 #endif
@@ -326,9 +322,6 @@ int main(int argc, char** argv)
 #else
         if (Set_Video_Mode(ScreenWidth, ScreenHeight, 8)) {
             video_success = true;
-            if (ScreenWidth > 320) {
-                Set_Video_Squeeze(ScreenWidth - 160, 32);
-            }
         }
 #endif
 

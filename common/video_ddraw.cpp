@@ -1357,11 +1357,3 @@ VideoSurface* Video::CreateSurface(int w, int h, GBC_Enum flags)
 {
     return new VideoSurfaceDDraw(w, h, flags);
 }
-
-void Set_Video_Squeeze(int, int)
-{
-}
-
-void Set_Video_Squeeze_Active(bool)
-{
-}

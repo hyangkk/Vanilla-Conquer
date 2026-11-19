@@ -868,7 +868,6 @@ bool SidebarClass::Scroll(bool up, int column)
  *=============================================================================================*/
 void SidebarClass::Draw_It(bool complete)
 {
-    Set_Video_Squeeze_Active(IsSidebarActive && !Debug_Map);
     PowerClass::Draw_It(complete);
 
     if (IsSidebarActive && (IsToRedraw || complete) && !Debug_Map) {

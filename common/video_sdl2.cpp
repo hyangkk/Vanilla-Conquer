@@ -60,19 +60,6 @@ static SDL_Palette* palette;
 static Uint32 pixel_format;
 static SDL_Rect render_dst;
 
-/*
-**	Custom build: horizontal squeeze of the sidebar columns at presentation time. The game canvas is
-**	squeeze_px wider than what is shown; canvas columns [squeeze_x, GameW) are drawn into a band that
-**	is squeeze_px narrower, so the sidebar looks slimmer while the battlefield keeps its pixel scale.
-*/
-static int squeeze_x = 0;
-static int squeeze_px = 0;
-static bool squeeze_active = false;
-static bool Squeeze_On()
-{
-    return squeeze_active && squeeze_px > 0 && squeeze_x > 0;
-}
-
 static struct
 {
     int GameW;
@@ -91,49 +78,6 @@ static struct
     SDL_Cursor* Current;
     SDL_Surface* Surface;
 } hwcursor;
-
-/*
-**	Map a displayed x (in unsqueezed-canvas units of the display width) back to a canvas x, and the
-**	reverse.
-*/
-static float Unsqueeze_X(float x)
-{
-    if (!Squeeze_On() || x < squeeze_x) {
-        return x;
-    }
-    float shown = float(hwcursor.GameW - squeeze_x - squeeze_px);
-    return squeeze_x + (x - squeeze_x) * float(hwcursor.GameW - squeeze_x) / shown;
-}
-
-static float Squeeze_X(float x)
-{
-    if (!Squeeze_On() || x < squeeze_x) {
-        return x;
-    }
-    float shown = float(hwcursor.GameW - squeeze_x - squeeze_px);
-    return squeeze_x + (x - squeeze_x) * shown / float(hwcursor.GameW - squeeze_x);
-}
-
-/*
-**	Copy a texture that holds the whole canvas (at any resolution) to render_dst, squeezing the
-**	sidebar band when active.
-*/
-static void Squeezed_Copy(SDL_Renderer* r, SDL_Texture* tex, int tex_w, int tex_h)
-{
-    if (!Squeeze_On()) {
-        SDL_RenderCopy(r, tex, nullptr, &render_dst);
-        return;
-    }
-    int shown_w = hwcursor.GameW - squeeze_px;
-    int split_src = int((long long)squeeze_x * tex_w / hwcursor.GameW);
-    int split_dst = int((long long)squeeze_x * render_dst.w / shown_w);
-    SDL_Rect s1 = {0, 0, split_src, tex_h};
-    SDL_Rect d1 = {render_dst.x, render_dst.y, split_dst, render_dst.h};
-    SDL_Rect s2 = {split_src, 0, tex_w - split_src, tex_h};
-    SDL_Rect d2 = {render_dst.x + split_dst, render_dst.y, render_dst.w - split_dst, render_dst.h};
-    SDL_RenderCopy(r, tex, &s1, &d1);
-    SDL_RenderCopy(r, tex, &s2, &d2);
-}
 
 #define ARRAY_SIZE(x) int(sizeof(x) / sizeof(x[0]))
 #define MAKEFORMAT(f)                                                                                                  \
@@ -192,10 +136,8 @@ public:
     {
         const auto& frame=RenderLayers::frame;
         if (!frame.ready || !Settings.Video.SmoothMotion || frame.width<=0 || frame.height<=0) return false;
-        const int want_w = Squeeze_On()
-            ? int((long long)render_dst.w * hwcursor.GameW / (hwcursor.GameW - squeeze_px)) : render_dst.w;
-        if (!texture || width!=want_w || height!=render_dst.h) {
-            Clear(); width=want_w; height=render_dst.h;
+        if (!texture || width!=render_dst.w || height!=render_dst.h) {
+            Clear(); width=render_dst.w; height=render_dst.h;
             texture=SDL_CreateTexture(renderer,SDL_PIXELFORMAT_RGBA32,SDL_TEXTUREACCESS_STREAMING,width,height);
             if (!texture) return false;
             SDL_SetTextureScaleMode(texture,SDL_ScaleModeNearest);
@@ -212,7 +154,7 @@ public:
         const float scale_x=float(width)/frame.width, scale_y=float(height)/frame.height;
         const auto& pixels=RenderLayers::Compose(width,height,colors,fraction);
         if (SDL_UpdateTexture(texture,nullptr,pixels.data(),width*4)!=0) return false;
-        Squeezed_Copy(renderer,texture,width,height);
+        SDL_RenderCopy(renderer,texture,nullptr,&render_dst);
         // Opt-in, bounded diagnostic trace of actual presentation calls, never simulation inputs.
         static FILE* trace = nullptr;
         static bool trace_checked = false;
@@ -258,7 +200,7 @@ public:
             SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
             if (cursor) {
                 int x, y; Get_Video_Mouse(x, y);
-                SDL_FRect dst = {render_dst.x + (Squeeze_X(x)-hwcursor.HotX)*scale_x,
+                SDL_FRect dst = {render_dst.x + (x-hwcursor.HotX)*scale_x,
                                  render_dst.y + (y-hwcursor.HotY)*scale_y,
                                  hwcursor.Surface->w*scale_x, hwcursor.Surface->h*scale_y};
                 SDL_RenderCopyF(renderer, cursor, nullptr, &dst);
@@ -279,13 +221,13 @@ static void Update_HWCursor_Settings()
     */
     int win_w, win_h;
     SDL_GetRendererOutputSize(renderer, &win_w, &win_h);
-    hwcursor.ScaleX = win_w / (float)(hwcursor.GameW - (Squeeze_On() ? squeeze_px : 0));
+    hwcursor.ScaleX = win_w / (float)hwcursor.GameW;
     hwcursor.ScaleY = win_h / (float)hwcursor.GameH;
 
     /*
     ** Update screen boxing settings.
     */
-    float ar = (float)(hwcursor.GameW - (Squeeze_On() ? squeeze_px : 0)) / hwcursor.GameH;
+    float ar = (float)hwcursor.GameW / hwcursor.GameH;
     if (Settings.Video.Boxing) {
         size_t colonPos = Settings.Video.BoxingAspectRatio.find(":");
         std::string arW;
@@ -375,15 +317,6 @@ bool Set_Video_Mode(int w, int h, int bits_per_pixel)
     int win_w = w;
     int win_h = h;
     int win_flags = 0;
-
-    /*
-    **	Custom build: the canvas can be wider than what is shown (sidebar squeeze); size windows from
-    **	the displayed width.
-    */
-    if (Settings.Video.GameWidth > 0 && Settings.Video.GameWidth < w) {
-        win_w = Settings.Video.GameWidth;
-    }
-    const int shown_w = win_w;
     Uint32 requested_pixel_format = SettingsPixelFormat();
 
     if (!Settings.Video.Windowed) {
@@ -399,7 +332,7 @@ bool Set_Video_Mode(int w, int h, int bits_per_pixel)
             win_h = Settings.Video.Height;
             win_flags |= SDL_WINDOW_FULLSCREEN;
         }
-    } else if (Settings.Video.WindowWidth > shown_w || Settings.Video.WindowHeight > h) {
+    } else if (Settings.Video.WindowWidth > w || Settings.Video.WindowHeight > h) {
         win_w = Settings.Video.WindowWidth;
         win_h = Settings.Video.WindowHeight;
     } else {
@@ -624,7 +557,7 @@ void Get_Video_Mouse(int& x, int& y)
         float scale_x, scale_y;
         Get_Video_Scale(scale_x, scale_y);
         SDL_GetMouseState(&x, &y);
-        x = int(Unsqueeze_X(x / scale_x));
+        x /= scale_x;
         y /= scale_y;
     }
 }
@@ -1013,7 +946,7 @@ public:
 
         SDL_UpdateTexture(texture, NULL, windowSurface->pixels, windowSurface->pitch);
         SDL_RenderClear(renderer);
-        if (!smooth_compositor.Render()) Squeezed_Copy(renderer, texture, windowSurface->w, windowSurface->h);
+        if (!smooth_compositor.Render()) SDL_RenderCopy(renderer, texture, NULL, &render_dst);
         SDL_RenderPresent(renderer);
     }
 
@@ -1052,25 +985,4 @@ Video& Video::Shared()
 VideoSurface* Video::CreateSurface(int w, int h, GBC_Enum flags)
 {
     return new VideoSurfaceSDL2(w, h, flags);
-}
-
-void Set_Video_Squeeze(int sidebar_x, int saved_px)
-{
-    squeeze_x = sidebar_x;
-    squeeze_px = saved_px;
-    if (renderer) {
-        Update_HWCursor_Settings();
-    }
-}
-
-void Set_Video_Squeeze_Active(bool active)
-{
-    if (active == squeeze_active) {
-        return;
-    }
-    squeeze_active = active;
-    smooth_compositor.Clear();
-    if (renderer) {
-        Update_HWCursor_Settings();
-    }
 }

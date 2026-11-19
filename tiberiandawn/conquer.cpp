@@ -2131,7 +2131,6 @@ extern void Play_Movie_GlyphX(const char* movie_name, ThemeType theme);
 
 void Play_Movie(char const* name, ThemeType theme, bool clrscrn)
 {
-    Set_Video_Squeeze_Active(false); // Custom build: movies use the full canvas.
 #if REMASTER_BUILD
     if (strcmp(name, "x") == 0 || strcmp(name, "X") == 0) {
         return;

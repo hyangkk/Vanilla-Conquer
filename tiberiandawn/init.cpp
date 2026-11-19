@@ -700,7 +700,6 @@ extern int Com_Show_Fake_Scenario_Dialog(void);
 
 bool Select_Game(bool fade)
 {
-    Set_Video_Squeeze_Active(false); // Custom build: full-screen menus use the full canvas.
     enum
     {
         SEL_TIMEOUT = -1, // main menu timeout--go into attract mode
