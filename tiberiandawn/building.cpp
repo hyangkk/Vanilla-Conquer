@@ -888,9 +888,10 @@ BulletClass* BuildingClass::Fire_At(TARGET target, int which)
  *   12/26/1994 JLB : Handles production.                                                      *
  *   06/11/1995 JLB : Revamped.                                                                *
  *=============================================================================================*/
+#define TIB4X_EXTRA_COPIES 19
 /*
-**	Custom build: computer factories turn out four of every combat unit they finish. The normal unit
-**	leaves the factory as usual (so teams still fill up); three extra copies appear around the
+**	Custom build: computer factories turn out twenty of every combat unit they finish. The normal unit
+**	leaves the factory as usual (so teams still fill up); nineteen extra copies appear around the
 **	factory and immediately go hunting for the enemy.
 */
 static TechnoTypeClass const* Tib4x_Extra_Production_Type(BuildingClass* factory, TechnoClass* product)
@@ -916,9 +917,9 @@ static void Tib4x_Extra_Production(BuildingClass* factory, TechnoTypeClass const
     RTTIType rtti = type->What_Am_I();
     CELL center = Coord_Cell(factory->Center_Coord());
     int made = 0;
-    for (int radius = 3; radius <= 10 && made < 3; ++radius) {
-        for (int dy = -radius; dy <= radius && made < 3; ++dy) {
-            for (int dx = -radius; dx <= radius && made < 3; ++dx) {
+    for (int radius = 3; radius <= 14 && made < TIB4X_EXTRA_COPIES; ++radius) {
+        for (int dy = -radius; dy <= radius && made < TIB4X_EXTRA_COPIES; ++dy) {
+            for (int dx = -radius; dx <= radius && made < TIB4X_EXTRA_COPIES; ++dx) {
                 if (MAX(ABS(dx), ABS(dy)) != radius) {
                     continue;
                 }
@@ -933,6 +934,15 @@ static void Tib4x_Extra_Production(BuildingClass* factory, TechnoTypeClass const
                 }
                 if (rtti != RTTI_AIRCRAFTTYPE && (Map[cell].Cell_Occupier() != NULL || Map[cell].Cell_Building() != NULL)) {
                     continue;
+                }
+                /*
+                **	Keep a reserve in the object pools so the extra enemy copies can never stop
+                **	the player (or scripted reinforcements) from getting new units.
+                */
+                if ((rtti == RTTI_UNITTYPE && Units.Count() >= UNIT_MAX - 100)
+                    || (rtti == RTTI_INFANTRYTYPE && Infantry.Count() >= INFANTRY_MAX - 100)
+                    || (rtti == RTTI_AIRCRAFTTYPE && Aircraft.Count() >= AIRCRAFT_MAX - 20)) {
+                    return;
                 }
                 TechnoClass* extra = (TechnoClass*)type->Create_One_Of(factory->House);
                 if (extra == NULL) {

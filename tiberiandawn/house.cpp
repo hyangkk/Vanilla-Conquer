@@ -1120,11 +1120,19 @@ void HouseClass::AI(void)
     **	teams.
     */
     /*
-    **	Custom build: a computer house that has started production is always on the offensive and
-    **	sends attack teams three times as often.
+    **	Custom build: a computer house that has started production is always on the offensive.
     */
     if (!IsHuman && IsStarted && !IsAlerted) {
         IsAlerted = true;
+    }
+
+    /*
+    **	Custom build: an enemy computer house that owns a factory starts producing right away
+    **	instead of waiting for a scenario trigger.
+    */
+    if (!IsHuman && !IsStarted && PlayerPtr && !Is_Ally(PlayerPtr)
+        && (ActiveBScan & (STRUCTF_WEAP | STRUCTF_AIRSTRIP | STRUCTF_BARRACKS | STRUCTF_HAND | STRUCTF_HELIPAD))) {
+        Begin_Production();
     }
 
     if (IsAlerted && AlertTime.Expired()) {
@@ -1133,6 +1141,9 @@ void HouseClass::AI(void)
         **	Adjusted to reduce maximum number of teams created.
         */
         int maxteams = Random_Pick(2, (int)(((BuildLevel - 1) / 3) + 1));
+        if (!IsHuman) {
+            maxteams *= 2; // Custom build: computer houses send twice as many attack teams.
+        }
         for (int index = 0; index < maxteams; index++) {
             TeamTypeClass const* ttype = Suggested_New_Team(true);
             if (ttype) {
@@ -1151,7 +1162,7 @@ void HouseClass::AI(void)
             }
         }
         if (!IsHuman) {
-            AlertTime = MAX(1, (int)AlertTime / 3);
+            AlertTime = MAX(1, (int)AlertTime / 9); // Custom build: attack teams nine times as often.
         }
     }
 
