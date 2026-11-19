@@ -785,7 +785,13 @@ void AircraftClass::AI(void)
     **	Perform sighting every so often as controlled by the sight timer.
     */
     // if (IsOwnedByPlayer && Class->SightRange && SightTimer.Expired()) {		// Changed for multiple player mapping
-    if (House->IsHuman && Class->SightRange && SightTimer.Expired()) {
+    if (House->IsHuman && !Class->IsFixedWing && !IsInLimbo && SightTimer.Expired()) {
+        /*
+        **	Custom build: human helicopters reveal the map 10 cells around themselves wherever they fly.
+        */
+        Map.Sight_From(House, Coord_Cell(Coord), 10, false);
+        SightTimer = TICKS_PER_SECOND / 4;
+    } else if (House->IsHuman && Class->SightRange && SightTimer.Expired()) {
         Map.Sight_From(House, Coord_Cell(Coord), Class->SightRange, false);
         SightTimer = TICKS_PER_SECOND;
     }
@@ -2325,6 +2331,16 @@ int AircraftClass::Mission_Attack(void)
     case PICK_ATTACK_LOCATION:
         if (!Target_Legal(TarCom)) {
             Status = RETURN_TO_BASE;
+        } else if (Tib4x_Gunship(this) && Altitude == FLIGHT_LEVEL && !IsLanding && !IsTakingOff
+                   && In_Range(TarCom, 0)) {
+            /*
+            **	Custom build: a gunship that can already reach its target stays where it is and
+            **	keeps firing instead of flying to a new firing spot after every volley.
+            */
+            Assign_Destination(TARGET_NONE);
+            Set_Speed(0);
+            Status = FIRE_AT_TARGET;
+            return (1);
         } else {
             Assign_Destination(Good_Fire_Location(TarCom));
             if (Target_Legal(NavCom)) {
@@ -2460,7 +2476,7 @@ int AircraftClass::Mission_Attack(void)
             Map[::As_Cell(TarCom)].Incoming(Coord, true);
 
             if (Ammo) {
-                Status = PICK_ATTACK_LOCATION;
+                Status = (Tib4x_Gunship(this) && In_Range(TarCom, 0)) ? FIRE_AT_TARGET : PICK_ATTACK_LOCATION;
             } else {
                 Status = RETURN_TO_BASE;
             }
@@ -2470,7 +2486,7 @@ int AircraftClass::Mission_Attack(void)
             if (!Ammo) {
                 Status = RETURN_TO_BASE;
             } else {
-                Status = PICK_ATTACK_LOCATION;
+                Status = (Tib4x_Gunship(this) && In_Range(TarCom, 0)) ? FIRE_AT_TARGET : PICK_ATTACK_LOCATION;
             }
             break;
         }
