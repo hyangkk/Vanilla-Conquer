@@ -1436,6 +1436,13 @@ bool BuildingClass::Unlimbo(COORDINATE coord, DirType dir)
                 ObjectClass* o = OverlayTypeClass::As_Reference(otype).Create_One_Of(House);
                 if (o && o->Unlimbo(coord)) {
                     Map[Coord_Cell(coord)].Owner = House->Class->House;
+                    /*
+                    **	Custom build: a wall section the human player builds reveals the map five
+                    **	cells around it.
+                    */
+                    if (House->IsHuman) {
+                        Map.Sight_From(House, Coord_Cell(coord), 5, false);
+                    }
                     Transmit_Message(RADIO_OVER_OUT);
                     Delete_This();
                     return (true);
