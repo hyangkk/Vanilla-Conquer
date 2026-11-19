@@ -2858,9 +2858,11 @@ TARGET BuildingClass::Greatest_Threat(ThreatType threat) const
     if (*this != STRUCT_SAM) {
         threat = threat | (THREAT_INFANTRY | THREAT_BOATS | THREAT_VEHICLES | THREAT_RANGE);
 
-        if (!House->IsHuman) {
-            threat = threat | THREAT_BUILDINGS;
-        }
+        /*
+        **	Custom build: human defenses also engage enemy structures automatically
+        **	(computer defenses always did). Armed enemies still take priority.
+        */
+        threat = threat | THREAT_BUILDINGS;
         //		threat = threat & ~THREAT_AIR;
     } else {
         threat = threat | THREAT_AREA;
@@ -4278,6 +4280,8 @@ int BuildingClass::Mission_Deconstruction(void)
  * HISTORY:                                                                                    *
  *   06/25/1995 JLB : Created.                                                                 *
  *=============================================================================================*/
+bool Tib4x_Fallback_Target(TARGET target);
+
 int BuildingClass::Mission_Attack(void)
 {
     Validate();
@@ -4440,6 +4444,17 @@ int BuildingClass::Mission_Attack(void)
 
     } else {
         IsReadyToCommence = true;
+
+        /*
+        **	Custom build: a human defense shooting at an unarmed structure or a wall switches
+        **	to an armed enemy as soon as one is available.
+        */
+        if (House->IsHuman && Target_Legal(TarCom) && Tib4x_Fallback_Target(TarCom)) {
+            TARGET better = Greatest_Threat(THREAT_NORMAL);
+            if (Target_Legal(better) && better != TarCom && !Tib4x_Fallback_Target(better)) {
+                Assign_Target(better);
+            }
+        }
         switch (Can_Fire(TarCom, 0)) {
         case FIRE_ILLEGAL:
         case FIRE_CANT:

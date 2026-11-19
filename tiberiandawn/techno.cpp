@@ -1778,6 +1778,7 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
                     if (Evaluate_Cell(method, mask, newcell, range, &object, value)) {
                         if (bestval < value) {
                             bestobject = object;
+                            if (House->IsHuman) bestval = value; // Custom build: keep the best, not the last, target.
                         }
                     }
                 }
@@ -1787,6 +1788,7 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
                     if (Evaluate_Cell(method, mask, newcell, range, &object, value)) {
                         if (bestval < value) {
                             bestobject = object;
+                            if (House->IsHuman) bestval = value; // Custom build: keep the best, not the last, target.
                         }
                     }
                 }
@@ -1808,6 +1810,7 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
                     if (Evaluate_Cell(method, mask, newcell, range, &object, value)) {
                         if (bestval < value) {
                             bestobject = object;
+                            if (House->IsHuman) bestval = value; // Custom build: keep the best, not the last, target.
                         }
                     }
                 }
@@ -1817,6 +1820,7 @@ TARGET TechnoClass::Greatest_Threat(ThreatType method) const
                     if (Evaluate_Cell(method, mask, newcell, range, &object, value)) {
                         if (bestval < value) {
                             bestobject = object;
+                            if (House->IsHuman) bestval = value; // Custom build: keep the best, not the last, target.
                         }
                     }
                 }
@@ -2474,6 +2478,12 @@ BulletClass* TechnoClass::Fire_At(TARGET target, int which)
     **	created.
     */
     int firepower = (weapon->Attack > 0) ? ((int)weapon->Attack * House->FirepowerBias) : 0;
+    /*
+    **	Custom build: human-owned Obelisks hit 30% weaker (their range is 50% longer).
+    */
+    if (What_Am_I() == RTTI_BUILDING && *((BuildingClass*)this) == STRUCT_OBELISK && House->IsHuman) {
+        firepower = firepower * 7 / 10;
+    }
     bullet = new BulletClass(weapon->Fires);
     if (bullet) {
         bullet->Assign_Target(target);
@@ -3013,6 +3023,12 @@ int TechnoClass::Weapon_Range(int which) const
         */
         if (What_Am_I() == RTTI_AIRCRAFT && House && House->IsHuman && !((AircraftClass const*)this)->Class->IsFixedWing) {
             range *= 2;
+        }
+        /*
+        **	Custom build: human-owned Obelisks reach 50% farther.
+        */
+        if (What_Am_I() == RTTI_BUILDING && House && House->IsHuman && *((BuildingClass const*)this) == STRUCT_OBELISK) {
+            range = range * 3 / 2;
         }
         return (range);
     }
@@ -4397,7 +4413,7 @@ void TechnoClass::Response_Sabotage(void)
 **	Custom build: a "fallback" target is an unarmed enemy structure or a wall cell. Human-owned
 **	objects shooting at one switch to an armed enemy as soon as one is available.
 */
-static bool Tib4x_Fallback_Target(TARGET target)
+bool Tib4x_Fallback_Target(TARGET target)
 {
     if (Is_Target_Cell(target))
         return true;
