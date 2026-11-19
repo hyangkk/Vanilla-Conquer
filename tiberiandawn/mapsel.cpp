@@ -416,6 +416,7 @@ const char* GetMapSelString(unsigned int index)
  *=============================================================================================*/
 void Map_Selection(void)
 {
+    Set_Video_Squeeze_Active(false); // Custom build: full-screen menus use the full canvas.
     void *anim, *progress, *oldfont, *greyearth, *greyearth2;
     unsigned char localpalette[768];
     int scenario, lastscenario;

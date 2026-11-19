@@ -65,6 +65,12 @@ void Get_Video_Scale(float& x, float& y);
 void Set_Video_Cursor_Clip(bool clipped);
 void Move_Video_Mouse(float xrel, float yrel);
 void Get_Video_Mouse(int& x, int& y);
+/*
+**	Custom build: show the canvas columns from sidebar_x to the right edge narrower on screen. The
+**	canvas is saved_px wider than the displayed width; the squeeze only applies while active.
+*/
+void Set_Video_Squeeze(int sidebar_x, int saved_px);
+void Set_Video_Squeeze_Active(bool active);
 void Toggle_Video_Fullscreen();
 void Reset_Video_Mode();
 unsigned Get_Free_Video_Memory();

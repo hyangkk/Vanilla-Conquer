@@ -887,6 +887,74 @@ BulletClass* BuildingClass::Fire_At(TARGET target, int which)
  *   12/26/1994 JLB : Handles production.                                                      *
  *   06/11/1995 JLB : Revamped.                                                                *
  *=============================================================================================*/
+/*
+**	Custom build: computer factories turn out four of every combat unit they finish. The normal unit
+**	leaves the factory as usual (so teams still fill up); three extra copies appear around the
+**	factory and immediately go hunting for the enemy.
+*/
+static TechnoTypeClass const* Tib4x_Extra_Production_Type(BuildingClass* factory, TechnoClass* product)
+{
+    if (product == NULL || factory->House == NULL || factory->House->IsHuman) {
+        return (NULL);
+    }
+    RTTIType rtti = product->What_Am_I();
+    if (rtti != RTTI_UNIT && rtti != RTTI_INFANTRY && rtti != RTTI_AIRCRAFT) {
+        return (NULL);
+    }
+    if (rtti == RTTI_UNIT && (*(UnitClass*)product == UNIT_HARVESTER || *(UnitClass*)product == UNIT_MCV)) {
+        return (NULL);
+    }
+    return (product->Techno_Type_Class());
+}
+
+static void Tib4x_Extra_Production(BuildingClass* factory, TechnoTypeClass const* type)
+{
+    if (type == NULL) {
+        return;
+    }
+    RTTIType rtti = type->What_Am_I();
+    CELL center = Coord_Cell(factory->Center_Coord());
+    int made = 0;
+    for (int radius = 3; radius <= 10 && made < 3; ++radius) {
+        for (int dy = -radius; dy <= radius && made < 3; ++dy) {
+            for (int dx = -radius; dx <= radius && made < 3; ++dx) {
+                if (MAX(ABS(dx), ABS(dy)) != radius) {
+                    continue;
+                }
+                int x = Cell_X(center) + dx;
+                int y = Cell_Y(center) + dy;
+                if (x < 0 || x >= MAP_CELL_W || y < 0 || y >= MAP_CELL_H) {
+                    continue;
+                }
+                CELL cell = XY_Cell(x, y);
+                if (!Map.In_Radar(cell)) {
+                    continue;
+                }
+                if (rtti != RTTI_AIRCRAFTTYPE && (Map[cell].Cell_Occupier() != NULL || Map[cell].Cell_Building() != NULL)) {
+                    continue;
+                }
+                TechnoClass* extra = (TechnoClass*)type->Create_One_Of(factory->House);
+                if (extra == NULL) {
+                    return;
+                }
+                if (rtti == RTTI_AIRCRAFTTYPE) {
+                    ((AircraftClass*)extra)->Altitude = AircraftClass::FLIGHT_LEVEL;
+                } else if (extra->Can_Enter_Cell(cell) != MOVE_OK) {
+                    delete extra;
+                    continue;
+                }
+                if (extra->Unlimbo(Cell_Coord(cell), factory->Direction(cell))) {
+                    extra->Assign_Mission(MISSION_HUNT);
+                    extra->Commence();
+                    ++made;
+                } else {
+                    delete extra;
+                }
+            }
+        }
+    }
+}
+
 void BuildingClass::AI(void)
 {
     Validate();
@@ -1127,6 +1195,10 @@ void BuildingClass::AI(void)
     **	all production control.
     */
     if (Factory && Factory->Has_Completed() && PlacementDelay.Expired()) {
+        /*
+        **	Remember the product type now: Exit_Object() may delete the object (airstrip delivery).
+        */
+        TechnoTypeClass const* tib4x_extra = Tib4x_Extra_Production_Type(this, Factory->Get_Object());
 
         switch (Exit_Object(Factory->Get_Object())) {
 
@@ -1146,6 +1218,7 @@ void BuildingClass::AI(void)
             break;
 
         case 2:
+            Tib4x_Extra_Production(this, tib4x_extra);
             Factory->Completed();
             delete Factory;
             Factory = 0;

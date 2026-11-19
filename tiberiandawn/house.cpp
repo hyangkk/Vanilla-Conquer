@@ -1009,6 +1009,14 @@ void HouseClass::AI(void)
     **	see if the attack timer has expired. If it has, then create the attack
     **	teams.
     */
+    /*
+    **	Custom build: a computer house that has started production is always on the offensive and
+    **	sends attack teams three times as often.
+    */
+    if (!IsHuman && IsStarted && !IsAlerted) {
+        IsAlerted = true;
+    }
+
     if (IsAlerted && AlertTime.Expired()) {
 
         /*
@@ -1031,6 +1039,9 @@ void HouseClass::AI(void)
             } else {
                 AlertTime = (TICKS_PER_MINUTE * Random_Pick(5, 20));
             }
+        }
+        if (!IsHuman) {
+            AlertTime = MAX(1, (int)AlertTime / 3);
         }
     }
 
@@ -4679,6 +4690,9 @@ void HouseClass::Init_Data(PlayerColorType color, HousesType house, int credits)
 fixed HouseClass::Power_Fraction(void) const
 {
     Validate();
+    if (IsHuman) {
+        return (1); // Custom build: the human player has unlimited power.
+    }
     if (Power >= Drain || Drain == 0)
         return (1);
 

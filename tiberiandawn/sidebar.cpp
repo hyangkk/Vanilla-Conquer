@@ -117,6 +117,15 @@ ShapeButtonClass SidebarClass::StripClass::UpButton[COLUMNS];
 ShapeButtonClass SidebarClass::StripClass::DownButton[COLUMNS];
 SidebarClass::StripClass::SelectClass SidebarClass::StripClass::SelectButton[COLUMNS][MAX_VISIBLE];
 
+int Tib4x_Sidebar_Extra_Rows(void)
+{
+    if (Get_Resolution_Factor() == 0) {
+        return 0;
+    }
+    int extra = (SeenBuff.Get_Height() - 400) / 48; // one hi-res strip row is 48 pixels tall
+    return Bound(extra, 0, 8);                      // at most 12 rows (StripClass::MAX_VISIBLE)
+}
+
 /*
 ** Shape data pointers
 */
@@ -182,7 +191,7 @@ void SidebarClass::One_Time(void)
     SideY = Map.RadY + Map.RadHeight + 1;
     SideWidth = SeenBuff.Get_Width() - SideX;
     SideHeight = SeenBuff.Get_Height() - SideY;
-    MaxVisible = 4;
+    MaxVisible = Tib4x_Sidebar_Rows();
     ButtonHeight = 9 * factor;
     TopHeight = ButtonHeight + (4 * factor);
 
@@ -274,7 +283,7 @@ void SidebarClass::Refit_Layout(void)
     } else {
         PowY = RadY + RadHeight + (13 << factor);
     }
-    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY;
+    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY + Tib4x_Sidebar_Extra_Rows() * (StripClass::OBJECT_HEIGHT << factor);
     PowerButton.X = PowX;
     PowerButton.Y = PowY;
     PowerButton.Height = PowHeight;
@@ -287,6 +296,7 @@ void SidebarClass::Refit_Layout(void)
     SideHeight = SeenBuff.Get_Height() - SideY;
     ButtonHeight = 9 * sfactor;
     TopHeight = ButtonHeight + (4 * sfactor);
+    MaxVisible = Tib4x_Sidebar_Rows();
     Background.X = SideX + 8 * sfactor;
     Background.Y = SideY;
     Background.Width = SideWidth - 1;
@@ -858,6 +868,7 @@ bool SidebarClass::Scroll(bool up, int column)
  *=============================================================================================*/
 void SidebarClass::Draw_It(bool complete)
 {
+    Set_Video_Squeeze_Active(IsSidebarActive && !Debug_Map);
     PowerClass::Draw_It(complete);
 
     if (IsSidebarActive && (IsToRedraw || complete) && !Debug_Map) {
@@ -897,7 +908,18 @@ void SidebarClass::Draw_It(bool complete)
             } else {
                 LogicPage->Draw_Line(SideX, 157, SeenBuff.Get_Width() - 1, 157, 0);
                 CC_Draw_Shape(SidebarShape1, 0, SideX, 158, WINDOW_MAIN, SHAPE_WIN_REL);
-                CC_Draw_Shape(SidebarShape2, 0, SideX, 158 + 118, WINDOW_MAIN, SHAPE_WIN_REL);
+                /*
+                **	Custom build: repeat the slot section of the lower sidebar art once per extra row so
+                **	the frame and the scroll buttons line up with the taller strips.
+                */
+                for (int row = 0; row <= Tib4x_Sidebar_Extra_Rows(); ++row) {
+                    CC_Draw_Shape(SidebarShape2,
+                                  0,
+                                  SideX,
+                                  158 + 118 + row * (StripClass::OBJECT_HEIGHT << 1),
+                                  WINDOW_MAIN,
+                                  SHAPE_WIN_REL);
+                }
             }
 
             //  Repair.Draw_Me(true);
@@ -1343,18 +1365,18 @@ void SidebarClass::StripClass::Init_IO(int id)
     UpButton[ID].IsSticky = true;
     UpButton[ID].ID = BUTTON_UP + id;
     UpButton[ID].X = X + ButtonSpacingOffset + 1;
-    UpButton[ID].Y = Y + MAX_VISIBLE * ObjectHeight - 1;
+    UpButton[ID].Y = Y + Tib4x_Sidebar_Rows() * ObjectHeight - 1;
 
     UpButton[ID].Set_Shape(Hires_Retrieve("STRIPUP.SHP"));
 
     DownButton[ID].IsSticky = true;
     DownButton[ID].ID = BUTTON_DOWN + id;
     DownButton[ID].X = UpButton[ID].X + UpButton[ID].Width + ButtonSpacingOffset - 2;
-    DownButton[ID].Y = Y + MAX_VISIBLE * ObjectHeight - 1;
+    DownButton[ID].Y = Y + Tib4x_Sidebar_Rows() * ObjectHeight - 1;
 
     DownButton[ID].Set_Shape(Hires_Retrieve("STRIPDN.SHP"));
 
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Tib4x_Sidebar_Rows(); index++) {
         SelectClass& g = SelectButton[ID][index];
         g.ID = BUTTON_SELECT;
         g.X = X;
@@ -1446,7 +1468,7 @@ void SidebarClass::StripClass::Activate(void)
     DownButton[ID].Zap();
     Map.Add_A_Button(DownButton[ID]);
 
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Tib4x_Sidebar_Rows(); index++) {
         SelectButton[ID][index].Zap();
         Map.Add_A_Button(SelectButton[ID][index]);
     }
@@ -1471,7 +1493,7 @@ void SidebarClass::StripClass::Deactivate(void)
 {
     Map.Remove_A_Button(UpButton[ID]);
     Map.Remove_A_Button(DownButton[ID]);
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Tib4x_Sidebar_Rows(); index++) {
         Map.Remove_A_Button(SelectButton[ID][index]);
     }
 }
@@ -1615,7 +1637,7 @@ bool SidebarClass::StripClass::Scroll(bool up)
         Scroller++;
     }
 #ifdef NEVER
-    if (BuildableCount <= MAX_VISIBLE)
+    if (BuildableCount <= Tib4x_Sidebar_Rows())
         return (false);
 
     /*
@@ -1630,7 +1652,7 @@ bool SidebarClass::StripClass::Scroll(bool up)
         TopIndex--;
         Slid = 0;
     } else {
-        if (TopIndex + MAX_VISIBLE >= BuildableCount)
+        if (TopIndex + Tib4x_Sidebar_Rows() >= BuildableCount)
             return (false);
 
         Slid = ObjectHeight;
@@ -1706,7 +1728,7 @@ bool SidebarClass::StripClass::AI(KeyNumType& input, int, int)
     **	logic handler. This might result in up or down scrolling.
     */
     if (!IsScrolling && Scroller) {
-        if (BuildableCount <= MAX_VISIBLE) {
+        if (BuildableCount <= Tib4x_Sidebar_Rows()) {
             Scroller = 0;
         } else {
 
@@ -1727,7 +1749,7 @@ bool SidebarClass::StripClass::AI(KeyNumType& input, int, int)
                 }
 
             } else {
-                if (TopIndex + MAX_VISIBLE >= BuildableCount) {
+                if (TopIndex + Tib4x_Sidebar_Rows() >= BuildableCount) {
                     Scroller = 0;
                 } else {
                     Scroller--;
@@ -1867,8 +1889,21 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         /*
         ** New sidebar needs to be drawn not filled
         */
-        if (factor > 0 && BuildableCount < MAX_VISIBLE) {
+        if (factor > 0 && BuildableCount < Tib4x_Sidebar_Rows()) {
             CC_Draw_Shape(LogoShapes, ID, X + 3, Y - 1, WINDOW_MAIN, SHAPE_WIN_REL | SHAPE_NORMAL, 0);
+            /*
+            **	Custom build: the background art covers four rows; repeat it below for the extra
+            **	rows, clipped to the strip window so it never spills over the scroll buttons.
+            */
+            for (int row = 4; row < Tib4x_Sidebar_Rows(); row += 4) {
+                CC_Draw_Shape(LogoShapes,
+                              ID,
+                              X + 3 - WindowList[WINDOW_SIDEBAR][WINDOWX],
+                              Y - 1 + row * ObjectHeight - WindowList[WINDOW_SIDEBAR][WINDOWY],
+                              WINDOW_SIDEBAR,
+                              SHAPE_WIN_REL | SHAPE_NORMAL,
+                              0);
+            }
         }
 
         /*
@@ -1881,7 +1916,7 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         **	Loop through all the buildable objects that are visible in the strip and render
         **	them. Their Y offset may be adjusted if the strip is in the process of scrolling.
         */
-        for (int i = 0; i < MAX_VISIBLE + (IsScrolling ? 1 : 0); i++) {
+        for (int i = 0; i < Tib4x_Sidebar_Rows() + (IsScrolling ? 1 : 0); i++) {
             bool production;
             bool completed;
             int stage;

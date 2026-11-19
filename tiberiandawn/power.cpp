@@ -41,6 +41,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+static int Tib4x_Shown_Power(void);
 
 /*
 **	Points to the shape to use for the "desired" power level indicator.
@@ -136,7 +137,7 @@ void PowerClass::One_Time(void)
         PowY = Map.RadY + Map.RadHeight + (13 << factor);
     }
     PowWidth = 8 << factor;
-    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY;
+    PowHeight = MIN(SeenBuff.Get_Height(), (200 << factor)) - PowY + Tib4x_Sidebar_Extra_Rows() * (24 << factor);
     PowLineSpace = 5 << factor;
     PowLineWidth = PowWidth - 4;
 
@@ -206,7 +207,9 @@ void PowerClass::Draw_It(bool complete)
                 if (factor) {
 
                     CC_Draw_Shape(PowerBarShape, 0, PowX, PowY, WINDOW_CUSTOM, SHAPE_WIN_REL);
-                    CC_Draw_Shape(PowerBarShape, 1, PowX, PowY + 100, WINDOW_CUSTOM, SHAPE_WIN_REL);
+                    for (int row = 0; row <= Tib4x_Sidebar_Extra_Rows(); ++row) {
+                        CC_Draw_Shape(PowerBarShape, 1, PowX, PowY + 100 + row * 48, WINDOW_CUSTOM, SHAPE_WIN_REL);
+                    }
                 } else {
                     /* Draw MS-DOS power gauge. */
                     int top_y = PowY + 1;
@@ -241,10 +244,10 @@ void PowerClass::Draw_It(bool complete)
                 if (power_height) {
                     power_color = (factor) ? 0 : GREEN; // green
 
-                    if (PlayerPtr->Drain > PlayerPtr->Power) {
+                    if (PlayerPtr->Drain > Tib4x_Shown_Power()) {
                         power_color = (factor) ? 2 : YELLOW;
                     }
-                    if (PlayerPtr->Drain > (PlayerPtr->Power * 2)) {
+                    if (PlayerPtr->Drain > (Tib4x_Shown_Power() * 2)) {
                         power_color = (factor) ? 4 : RED;
                     }
 
@@ -259,12 +262,14 @@ void PowerClass::Draw_It(bool complete)
                                       WINDOW_CUSTOM,
                                       SHAPE_WIN_REL);
 
-                        CC_Draw_Shape(PowerBarShape,
-                                      3 + power_color,
-                                      PowX,
-                                      PowY - WindowList[WINDOW_CUSTOM][WINDOWY] + 100,
-                                      WINDOW_CUSTOM,
-                                      SHAPE_WIN_REL);
+                        for (int row = 0; row <= Tib4x_Sidebar_Extra_Rows(); ++row) {
+                            CC_Draw_Shape(PowerBarShape,
+                                          3 + power_color,
+                                          PowX,
+                                          PowY - WindowList[WINDOW_CUSTOM][WINDOWY] + 100 + row * 48,
+                                          WINDOW_CUSTOM,
+                                          SHAPE_WIN_REL);
+                        }
                     } else {
                         LogicPage->Fill_Rect(PowX + 2, bottom - power_height + 1, PowX + 5, bottom - 1, power_color);
                     }
@@ -318,9 +323,9 @@ void PowerClass::AI(KeyNumType& input, int x, int y)
         ** If the recorded power value has changed we need to adjust for
         ** it.
         */
-        if (PlayerPtr->Power != RecordedPower) {
-            DesiredPowerHeight = Power_Height(PlayerPtr->Power);
-            RecordedPower = PlayerPtr->Power;
+        if (Tib4x_Shown_Power() != RecordedPower) {
+            DesiredPowerHeight = Power_Height(Tib4x_Shown_Power());
+            RecordedPower = Tib4x_Shown_Power();
             PowerBounce = 12;
             if (PowerHeight > DesiredPowerHeight) {
                 PowerDir = -1;
@@ -482,4 +487,13 @@ int PowerClass::PowerButtonClass::Action(unsigned flags, KeyNumType& key)
     }
     GadgetClass::Action(flags, key);
     return (true);
+}
+
+/*
+**	Custom build: the human player has unlimited power, so the power bar always shows a full,
+**	green output column.
+*/
+static int Tib4x_Shown_Power(void)
+{
+    return (PlayerPtr->IsHuman ? 9999 : PlayerPtr->Power);
 }
