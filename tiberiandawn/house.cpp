@@ -3014,6 +3014,14 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                     || (Tib4x_No_Factory(object_type, this) && Tib4x_Exit_Without_Factory(this, pending))) {
 
                     /*
+                    **	Custom build: every rifleman (minigunner) the human player trains pays out
+                    **	50000 credits.
+                    */
+                    if (IsHuman && pending->What_Am_I() == RTTI_INFANTRY && *(InfantryClass*)pending == INFANTRY_E1) {
+                        Refund_Money(50000);
+                    }
+
+                    /*
                     **	Since the object has left the factory under its own power, delete
                     **	the production manager tied to this slot in the sidebar. Its job
                     **	has been completed.
