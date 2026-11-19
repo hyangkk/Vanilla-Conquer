@@ -95,6 +95,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "ccini.h"
 
 /*
@@ -2796,7 +2797,8 @@ bool BuildingClass::Limbo(void)
                 if (factory) {
                     TechnoClass* object = factory->Get_Object();
                     IsInLimbo = true;
-                    if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, housep->Class->House)) {
+                    if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, housep->Class->House)
+                        && !Campaign_All_Tech_Type(object->Techno_Type_Class(), housep)) {
                         housep->Abandon_Production(bld_type);
                     }
                     IsInLimbo = false;
@@ -5457,7 +5459,8 @@ void BuildingClass::Detach_All(bool all)
         if (factory) {
             TechnoClass* object = factory->Get_Object();
             IsInLimbo = true;
-            if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, House->Class->House)) {
+            if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, House->Class->House)
+                && !Campaign_All_Tech_Type(object->Techno_Type_Class(), House)) {
                 House->Abandon_Production(Class->ToBuild);
             }
             IsInLimbo = false;

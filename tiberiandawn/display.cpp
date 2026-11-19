@@ -77,6 +77,7 @@
  *   DisplayClass::Prev_Object -- Searches for the previous object on the map.                 *
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 #include "function.h"
+#include "campaigntech.h"
 #include "smoothmotion.h"
 #include "common/fading.h"
 #include "ccini.h"
@@ -929,6 +930,15 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
                 }
 
                 if (base && base->What_Am_I() == RTTI_BUILDING && base->House->Class->House == house) {
+                    return (true);
+                }
+
+                /*
+                **	Custom build: with all-tech, the campaign player may also build next to its own
+                **	ground units, so a base can be started (or restarted) without a construction yard.
+                */
+                if (base && (base->What_Am_I() == RTTI_UNIT || base->What_Am_I() == RTTI_INFANTRY)
+                    && base->House->Class->House == house && Campaign_All_Tech(base->House)) {
                     return (true);
                 }
             }

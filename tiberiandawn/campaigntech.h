@@ -13,4 +13,13 @@ inline bool Eligible(bool enabled, bool buildable, bool faction_type, int level,
 }
 bool Campaign_All_Tech(const HouseClass* house);
 bool Campaign_All_Tech_Type(const TechnoTypeClass* type, const HouseClass* house);
+class TechnoClass;
+/*
+**	Custom build: with all-tech on, the campaign player can produce everything without a factory or
+**	construction yard. These helpers cover the "no factory" case.
+*/
+bool Tib4x_No_Factory(const TechnoTypeClass* type, const HouseClass* house);
+bool Tib4x_Exit_Without_Factory(HouseClass* house, TechnoClass* object);
+CELL Tib4x_Production_Anchor(const HouseClass* house);
+void Tib4x_Add_All_Buildables(const HouseClass* house);
 #endif

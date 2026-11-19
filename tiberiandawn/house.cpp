@@ -568,6 +568,116 @@ bool Campaign_All_Tech_Type(const TechnoTypeClass* type, const HouseClass* house
                                          (type->Ownable & (HOUSEF_GOOD | HOUSEF_BAD)) != 0, type->Level, type->Scenario);
 }
 
+bool Tib4x_No_Factory(const TechnoTypeClass* type, const HouseClass* house)
+{
+    return type && house && Campaign_All_Tech_Type(type, house)
+           && type->Who_Can_Build_Me(true, false, house->Class->House) == NULL;
+}
+
+/*
+**	A cell next to which no-factory production appears: the first own building, else the first own
+**	ground unit or infantry. Returns 0 when the house has neither.
+*/
+CELL Tib4x_Production_Anchor(const HouseClass* house)
+{
+    for (int i = 0; i < Buildings.Count(); ++i) {
+        BuildingClass* b = Buildings.Ptr(i);
+        if (b && b->IsActive && !b->IsInLimbo && b->House == house) {
+            return Coord_Cell(b->Center_Coord());
+        }
+    }
+    for (int i = 0; i < Units.Count(); ++i) {
+        UnitClass* u = Units.Ptr(i);
+        if (u && u->IsActive && !u->IsInLimbo && u->House == house) {
+            return Coord_Cell(u->Center_Coord());
+        }
+    }
+    for (int i = 0; i < Infantry.Count(); ++i) {
+        InfantryClass* u = Infantry.Ptr(i);
+        if (u && u->IsActive && !u->IsInLimbo && u->House == house) {
+            return Coord_Cell(u->Center_Coord());
+        }
+    }
+    return 0;
+}
+
+/*
+**	Put a finished unit, infantry or aircraft into the world when the house has no factory for it:
+**	it appears on the nearest free cell around the production anchor.
+*/
+bool Tib4x_Exit_Without_Factory(HouseClass* house, TechnoClass* object)
+{
+    if (!house || !object || !object->IsInLimbo) {
+        return false;
+    }
+    CELL anchor = Tib4x_Production_Anchor(house);
+    if (!anchor) {
+        return false;
+    }
+    bool air = object->What_Am_I() == RTTI_AIRCRAFT;
+    for (int radius = 1; radius <= 10; ++radius) {
+        for (int dy = -radius; dy <= radius; ++dy) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                if (MAX(ABS(dx), ABS(dy)) != radius) {
+                    continue;
+                }
+                int x = Cell_X(anchor) + dx;
+                int y = Cell_Y(anchor) + dy;
+                if (x < 0 || x >= MAP_CELL_W || y < 0 || y >= MAP_CELL_H) {
+                    continue;
+                }
+                CELL cell = XY_Cell(x, y);
+                if (!Map.In_Radar(cell)) {
+                    continue;
+                }
+                if (air) {
+                    ((AircraftClass*)object)->Altitude = AircraftClass::FLIGHT_LEVEL;
+                } else if (Map[cell].Cell_Occupier() != NULL || object->Can_Enter_Cell(cell) != MOVE_OK) {
+                    continue;
+                }
+                if (object->Unlimbo(Cell_Coord(cell), DIR_S)) {
+                    if (!air) {
+                        object->Assign_Mission(MISSION_GUARD);
+                    }
+                    object->Commence();
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/*
+**	List every all-tech type in the sidebar even when no factory or construction yard exists.
+*/
+void Tib4x_Add_All_Buildables(const HouseClass* house)
+{
+    if (!Campaign_All_Tech(house)) {
+        return;
+    }
+    for (StructType i = STRUCT_FIRST; i < STRUCT_COUNT; i++) {
+        if (Campaign_All_Tech_Type(&BuildingTypeClass::As_Reference(i), house)) {
+            Map.Add(RTTI_BUILDINGTYPE, i);
+        }
+    }
+    for (UnitType u = UNIT_FIRST; u < UNIT_COUNT; u++) {
+        if (Campaign_All_Tech_Type(&UnitTypeClass::As_Reference(u), house)) {
+            Map.Add(RTTI_UNITTYPE, u);
+        }
+    }
+    for (InfantryType f = INFANTRY_FIRST; f < INFANTRY_COUNT; f++) {
+        if (Campaign_All_Tech_Type(&InfantryTypeClass::As_Reference(f), house)) {
+            Map.Add(RTTI_INFANTRYTYPE, f);
+        }
+    }
+    for (AircraftType a = AIRCRAFT_FIRST; a < AIRCRAFT_COUNT; a++) {
+        if (Campaign_All_Tech_Type(&AircraftTypeClass::As_Reference(a), house)) {
+            Map.Add(RTTI_AIRCRAFTTYPE, a);
+        }
+    }
+}
+
 bool HouseClass::Can_Build(TechnoTypeClass const* type, HousesType house) const
 {
     Validate();
@@ -1678,6 +1788,7 @@ void HouseClass::AI(void)
                 }
             }
         }
+        Tib4x_Add_All_Buildables(this);
 #ifdef REMASTER_BUILD
         Recalculate_Placement_Distances();
 #endif
@@ -2899,7 +3010,8 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                 TechnoClass* builder = pending->Who_Can_Build_Me(false, false);
                 TechnoTypeClass const* object_type = pending->Techno_Type_Class();
 
-                if (builder && builder->Exit_Object(pending)) {
+                if ((builder && builder->Exit_Object(pending))
+                    || (Tib4x_No_Factory(object_type, this) && Tib4x_Exit_Without_Factory(this, pending))) {
 
                     /*
                     **	Since the object has left the factory under its own power, delete
@@ -2944,14 +3056,17 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
 
             if (tech) {
                 TechnoClass* builder = tech->Who_Can_Build_Me(false, false);
-                if (builder) {
+                bool nofactory = builder == NULL && Tib4x_No_Factory(tech->Techno_Type_Class(), this);
+                if (builder || nofactory) {
 
                     /*
                     **	Ensures that the proximity check is performed even when the building is
                     **	placed by way of a remote event.
                     */
                     if (tech->What_Am_I() != RTTI_BUILDING || ((BuildingClass*)tech)->Passes_Proximity_Check(cell)) {
-                        builder->Transmit_Message(RADIO_HELLO, tech);
+                        if (builder) {
+                            builder->Transmit_Message(RADIO_HELLO, tech);
+                        }
                         if (tech->Unlimbo(Cell_Coord(cell))) {
                             factory->Completed();
                             Abandon_Production(type);
@@ -2969,7 +3084,9 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                                 Speak(VOX_DEPLOY);
                             }
                         }
-                        builder->Transmit_Message(RADIO_OVER_OUT);
+                        if (builder) {
+                            builder->Transmit_Message(RADIO_OVER_OUT);
+                        }
                     }
                 }
                 return (false);
@@ -3007,7 +3124,8 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
 bool HouseClass::Manual_Place(BuildingClass* builder, BuildingClass* object)
 {
     Validate();
-    if (this == PlayerPtr && !Map.PendingObject && builder && object) {
+    if (this == PlayerPtr && !Map.PendingObject && object
+        && (builder || Tib4x_No_Factory(object->Techno_Type_Class(), this))) {
 
         /*
         **	Ensures that object selection doesn't remain when
@@ -3023,8 +3141,13 @@ bool HouseClass::Manual_Place(BuildingClass* builder, BuildingClass* object)
         Map.PendingHouse = Class->House;
 
         Map.Set_Cursor_Shape(object->Occupy_List(true));
-        Map.Set_Cursor_Pos(Coord_Cell(builder->Coord));
-        builder->Mark(MARK_CHANGE);
+        if (builder) {
+            Map.Set_Cursor_Pos(Coord_Cell(builder->Coord));
+            builder->Mark(MARK_CHANGE);
+        } else {
+            CELL anchor = Tib4x_Production_Anchor(this);
+            Map.Set_Cursor_Pos(anchor ? anchor : Coord_Cell(Map.TacticalCoord));
+        }
         return (true);
     }
     return (false);
