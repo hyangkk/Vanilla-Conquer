@@ -944,6 +944,26 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
             }
         }
     }
+
+    /*
+    **	Custom build: own helicopters (flying or landed) also allow building within the same
+    **	radius. Aircraft are not listed in the cells they fly over, so scan them directly.
+    */
+    if (owner && Campaign_All_Tech(owner)) {
+        for (int i = 0; i < Aircraft.Count(); i++) {
+            AircraftClass* air = Aircraft.Ptr(i);
+            if (!air || !air->IsActive || air->IsInLimbo || air->House != owner || air->Class->IsFixedWing) {
+                continue;
+            }
+            CELL acell = Coord_Cell(air->Center_Coord());
+            for (ptr = list; *ptr != REFRESH_EOL; ptr++) {
+                CELL cell = trycell + *ptr;
+                if (ABS(Cell_X(cell) - Cell_X(acell)) <= radius && ABS(Cell_Y(cell) - Cell_Y(acell)) <= radius) {
+                    return (true);
+                }
+            }
+        }
+    }
     return (false);
 }
 
