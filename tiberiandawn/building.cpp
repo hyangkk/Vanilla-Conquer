@@ -1757,6 +1757,23 @@ ResultType BuildingClass::Take_Damage(int& damage, int distance, WarheadType war
             WhoLastHurtMe = source->Owner();
 
             /*
+            **	Custom build: a human defensive structure (Obelisk, towers, SAM against aircraft)
+            **	immediately turns on whoever is attacking it, as long as it can reach and hit it.
+            */
+            if (House->IsHuman && !House->Is_Ally(source) && Class->Primary != WEAPON_NONE && source->IsActive
+                && !source->IsInLimbo && source->Strength > 0 && TarCom != source->As_Target()
+                && Mission != MISSION_CONSTRUCTION && Mission != MISSION_DECONSTRUCTION
+                && (*this != STRUCT_SAM || source->What_Am_I() == RTTI_AIRCRAFT) && In_Range(source->As_Target())) {
+                FireErrorType fe = Can_Fire(source->As_Target(), 0);
+                if (fe != FIRE_CANT && fe != FIRE_ILLEGAL) {
+                    Assign_Target(source->As_Target());
+                    if (Mission != MISSION_ATTACK) {
+                        Assign_Mission(MISSION_ATTACK);
+                    }
+                }
+            }
+
+            /*
             **	When certain buildings are hit, they "snap out of it" and
             **	return fire if they are able and allowed.
             */
