@@ -1122,7 +1122,8 @@ FireErrorType VesselClass::Can_Fire(TARGET target, int which) const
         } else {
 #ifdef FIXIT_CSII //	checked - ajw 9/28/98
             if (Is_Target_Vessel(target)
-                && (*As_Vessel(target) == VESSEL_SS || *As_Vessel(target) == VESSEL_MISSILESUB)) {
+                && (*As_Vessel(target) == VESSEL_SS || *As_Vessel(target) == VESSEL_MISSILESUB)
+                && !(*this == VESSEL_CA && House->IsHuman)) { // Custom build: player cruisers shell subs too
 #else
             if (Is_Target_Vessel(target) && *As_Vessel(target) == VESSEL_SS) {
 #endif

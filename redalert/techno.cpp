@@ -1716,7 +1716,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
     **	are always considered to be visible.
     */
     if (!object->IsOwnedByPlayer && !object->IsDiscoveredByPlayer && Session.Type == GAME_NORMAL
-        && object->What_Am_I() != RTTI_AIRCRAFT) {
+        && object->What_Am_I() != RTTI_AIRCRAFT
+        && !(House->IsHuman && What_Am_I() == RTTI_VESSEL && *(VesselClass const*)this == VESSEL_CA
+             && object->What_Am_I() == RTTI_VESSEL && Map[objectcoord].Is_Visible(PlayerPtr))) {
         BEnd(BENCH_EVAL_OBJECT);
         return (false);
     }
@@ -2200,6 +2202,13 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
 
     bool TechnoClass::Is_Cloaked(ObjectClass const* object, bool check_invisible) const
     {
+        /*
+        **	Custom build: the human player's cruisers track submerged submarines.
+        */
+        if (object != NULL && object->What_Am_I() == RTTI_VESSEL && *(VesselClass const*)object == VESSEL_CA
+            && ((TechnoClass const*)object)->House->IsHuman && What_Am_I() == RTTI_VESSEL) {
+            return (false);
+        }
         const bool is_invisible = check_invisible && Techno_Type_Class()->IsInvisible;
         return !House->Is_Ally(object) && ((Cloak == CLOAKED) || is_invisible);
     }

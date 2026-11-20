@@ -2514,6 +2514,13 @@ ActionType AircraftClass::What_Action(CELL cell) const
         action = ACTION_NOMOVE;
     }
 
+    /*
+    **	Custom build: the player's helicopters fly anywhere on the map (water, cliffs, unexplored).
+    */
+    if (action == ACTION_NOMOVE && !Class->IsFixedWing && House->IsHuman && Map.In_Radar(cell)) {
+        action = ACTION_MOVE;
+    }
+
     return (action);
 }
 
@@ -3861,7 +3868,7 @@ int AircraftClass::Mission_Guard(void)
     if (House->IsHuman && !Team.Is_Valid() && Class->PrimaryWeapon != NULL && Ammo != 0 && !IsLanding
         && !IsTakingOff) {
         if (!Target_Legal(TarCom)) {
-            Assign_Target(Greatest_Threat(THREAT_AREA));
+            Assign_Target(Greatest_Threat(THREAT_RANGE)); // like ground units: only what is in reach
         }
         if (Target_Legal(TarCom)) {
             Assign_Mission(MISSION_ATTACK);

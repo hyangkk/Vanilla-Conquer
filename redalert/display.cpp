@@ -830,7 +830,7 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
     */
     HouseClass* owner = HouseClass::As_Pointer(house);
     if (!retval && !noradar && owner && owner->IsHuman && Session.Type != GAME_GLYPHX_MULTIPLAYER) {
-        const int reach = 8;
+        const int reach = 16; // Custom build: build up to 16 cells from own objects
         int minx = MAP_CELL_W, miny = MAP_CELL_H, maxx = -1, maxy = -1;
         for (short const* fp = list; *fp != REFRESH_EOL; fp++) {
             CELL foot = trycell + *fp;
