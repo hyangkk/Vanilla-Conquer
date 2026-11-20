@@ -150,7 +150,7 @@ void CreditClass::Graphic_Logic(bool forced)
             }
 #endif
 #ifndef REMASTER_BUILD
-            int text_x = Options.ToggleSidebar ? 120 * RESFACTOR : 200 * RESFACTOR;
+            int text_x = SeenBuff.Get_Width() - (Options.ToggleSidebar ? 200 : 120) * RESFACTOR; // Custom build
 
             if (hours) {
                 Fancy_Text_Print(TXT_TIME_FORMAT_HOURS,

@@ -121,26 +121,31 @@ void ScrollClass::AI(KeyNumType& input, int x, int y)
 					**	Adjust the mouse coordinates to emphasize the
 					**	cardinal directions over the diagonals.
 					*/
+                    /*
+                    **	Custom build: use the real canvas size (was fixed to 640x400, which made edge
+                    **	scrolling drift diagonally on wider canvases).
+                    */
+                    const int sw = SeenBuff.Get_Width(), sh = SeenBuff.Get_Height();
                     int altx = x;
                     if (altx < 50 * RESFACTOR)
                         altx -= ((50 * RESFACTOR) - altx);
                     altx = max(altx, 0);
-                    if (altx > ((320 - 50) * RESFACTOR))
-                        altx += altx - ((320 - 50) * RESFACTOR);
-                    altx = min(altx, (320 * RESFACTOR));
-                    if (altx > (50 * RESFACTOR) && altx < ((320 - 50) * RESFACTOR)) {
-                        altx += (((320 / 2) * RESFACTOR) - altx) / 2;
+                    if (altx > (sw - 50 * RESFACTOR))
+                        altx += altx - (sw - 50 * RESFACTOR);
+                    altx = min(altx, sw);
+                    if (altx > (50 * RESFACTOR) && altx < (sw - 50 * RESFACTOR)) {
+                        altx += ((sw / 2) - altx) / 2;
                     }
 
                     int alty = y;
                     if (alty < (50 * RESFACTOR))
                         alty -= (50 * RESFACTOR) - alty;
                     alty = max(alty, 0);
-                    if (alty > (150 * RESFACTOR))
-                        alty += alty - (150 * RESFACTOR);
-                    alty = min(alty, 200 * RESFACTOR);
+                    if (alty > (sh - 50 * RESFACTOR))
+                        alty += alty - (sh - 50 * RESFACTOR);
+                    alty = min(alty, sh);
 
-                    direction = (DirType)Desired_Facing256((320 / 2) * RESFACTOR, (200 / 2) * RESFACTOR, altx, alty);
+                    direction = (DirType)Desired_Facing256(sw / 2, sh / 2, altx, alty);
                 }
 
                 int control = Dir_Facing(direction);

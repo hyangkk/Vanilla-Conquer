@@ -507,8 +507,15 @@ int Main_Menu(unsigned int)
     **	Custom build: centre the menu (drawn for 320x200 units) on wider game canvases, like the
     **	centred title picture.
     */
-    const int menu_x = (SeenBuff.Get_Width() - 320 * RESFACTOR) / 2;
-    const int menu_y = (SeenBuff.Get_Height() - 200 * RESFACTOR) / 2;
+    /*
+    **	The title picture is stretched to the whole canvas (Ra4x_Fill_Title), so keep the menu centred
+    **	on the same spot of the picture.
+    */
+    const int menu_cx = d_dialog_x + d_dialog_w / 2, menu_cy = d_dialog_y + d_dialog_h / 2;
+    const int menu_x = menu_cx * SeenBuff.Get_Width() / (320 * RESFACTOR) - menu_cx;
+    const int menu_y = menu_cy * SeenBuff.Get_Height() / (200 * RESFACTOR) - menu_cy;
+#define RA4X_TX(v) ((v)*SeenBuff.Get_Width() / (320 * RESFACTOR))
+#define RA4X_TY(v) ((v)*SeenBuff.Get_Height() / (200 * RESFACTOR))
     d_dialog_x += menu_x;
     d_dialog_y += menu_y;
     d_dialog_cx += menu_x;
@@ -939,10 +946,10 @@ int Main_Menu(unsigned int)
             if (Coordinates_In_Region(Keyboard->MouseQX,
                                       Keyboard->MouseQY,
 
-                                      menu_x + 9 * RESFACTOR,
-                                      menu_y + 10 * RESFACTOR,
-                                      menu_x + 79 * RESFACTOR,
-                                      menu_y + 24 * RESFACTOR)) {
+                                      RA4X_TX(9 * RESFACTOR),
+                                      RA4X_TY(10 * RESFACTOR),
+                                      RA4X_TX(79 * RESFACTOR),
+                                      RA4X_TY(24 * RESFACTOR))) {
                 Show_Who_Was_Responsible();
                 display = true;
                 Theme.Play_Song(THEME_INTRO);
@@ -955,7 +962,7 @@ int Main_Menu(unsigned int)
 #endif
                 if ((Keyboard->Down(KN_LSHIFT) || Keyboard->Down(KN_RSHIFT))
                     && Coordinates_In_Region(
-                        Keyboard->MouseQX, Keyboard->MouseQY, menu_x + 260 * RESFACTOR, menu_y, menu_x + 320 * RESFACTOR, menu_y + 50 * RESFACTOR)) {
+                        Keyboard->MouseQX, Keyboard->MouseQY, RA4X_TX(260 * RESFACTOR), 0, RA4X_TX(320 * RESFACTOR), RA4X_TY(50 * RESFACTOR))) {
                     AntsEnabled = true;
                     process = false;
 #ifdef FIXIT_VERSION_3

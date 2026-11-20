@@ -856,7 +856,6 @@ void SidebarClass::Draw_It(bool complete)
     if (panel && LogicPage->Lock()) {
         int left = SeenBuff.Get_Width() - Ra4x_Side_Width();
         LogicPage->Fill_Rect(left, 8 * RESFACTOR, SeenBuff.Get_Width() - 1, SeenBuff.Get_Height() - 1, BLACK);
-        Draw_Box(left, 8 * RESFACTOR, Ra4x_Side_Width(), SeenBuff.Get_Height() - 8 * RESFACTOR, BOXSTYLE_RAISED, false);
         LogicPage->Unlock();
     }
 
