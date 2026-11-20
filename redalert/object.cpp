@@ -98,6 +98,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 
 /*
 **	Selected objects have a special marking box around them. This is the shapes that are
@@ -2382,7 +2383,7 @@ BuildingClass* ObjectTypeClass::Who_Can_Build_Me(bool intheory, bool legal, Hous
 
             if (!building->IsInLimbo && building->House->Class->House == house && (*building == STRUCT_AIRSTRIP)
                 && building->Mission != MISSION_DECONSTRUCTION && building->MissionQueue != MISSION_DECONSTRUCTION
-                && ((1L << building->ActLike) & Get_Ownable())
+                && (((1L << building->ActLike) & Get_Ownable()) || Campaign_All_Tech_Type(this, building->House))
                 && (!legal || building->House->Can_Build(this, building->ActLike))) {
                 num_builders++;
             }
@@ -2406,7 +2407,7 @@ BuildingClass* ObjectTypeClass::Who_Can_Build_Me(bool intheory, bool legal, Hous
 
         if (!building->IsInLimbo && building->House->Class->House == house && building->Class->ToBuild == RTTI
             && building->Mission != MISSION_DECONSTRUCTION && building->MissionQueue != MISSION_DECONSTRUCTION
-            && ((1L << building->ActLike) & Get_Ownable())
+            && (((1L << building->ActLike) & Get_Ownable()) || Campaign_All_Tech_Type(this, building->House))
             && (!legal || building->House->Can_Build(this, building->ActLike))
             && (intheory || !building->In_Radio_Contact())) {
 

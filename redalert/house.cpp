@@ -141,6 +141,8 @@
 ** New sidebar for GlyphX multiplayer. ST - 8/7/2019 10:10AM
 */
 #include "sidebarglyphx.h"
+#include "campaigntech.h"
+#include "common/settings.h"
 
 TFixedIHeapClass<HouseClass::BuildChoiceClass> HouseClass::BuildChoice;
 
@@ -819,6 +821,176 @@ HouseStaticClass::HouseStaticClass(void)
  *   10/23/1996 JLB : Hack to allow Tanya to both sides in multiplay.                          *
  *   11/04/1996 JLB : Computer uses prerequisite record.                                       *
  *=============================================================================================*/
+/*
+**	Custom build: the local human campaign player may build every normally buildable Allied/Soviet
+**	structure, infantry, vehicle, ship and aircraft, ignoring faction, tech level and prerequisites,
+**	even without a construction yard or matching factory.
+*/
+bool Campaign_All_Tech(const HouseClass* house)
+{
+    return house && Settings.Options.CampaignAllTech && Session.Type == GAME_NORMAL && house == PlayerPtr
+           && house->IsHuman;
+}
+
+bool Campaign_All_Tech_Type(const ObjectTypeClass* type, const HouseClass* house)
+{
+    if (type == NULL || !Campaign_All_Tech(house)) {
+        return false;
+    }
+    int id = 0;
+    switch (type->What_Am_I()) {
+    case RTTI_BUILDINGTYPE:
+        id = ((BuildingTypeClass const*)type)->Type;
+        break;
+    case RTTI_UNITTYPE:
+        id = ((UnitTypeClass const*)type)->Type;
+        if (!NewUnitsEnabled && id >= UNIT_RA_COUNT)
+            return false;
+        break;
+    case RTTI_INFANTRYTYPE:
+        id = ((InfantryTypeClass const*)type)->Type;
+        if (!NewUnitsEnabled && id >= INFANTRY_RA_COUNT)
+            return false;
+        break;
+    case RTTI_VESSELTYPE:
+        id = ((VesselTypeClass const*)type)->Type;
+        if (!NewUnitsEnabled && id >= VESSEL_RA_COUNT)
+            return false;
+        break;
+    case RTTI_AIRCRAFTTYPE:
+        break;
+    default:
+        return false;
+    }
+    TechnoTypeClass const* tech = (TechnoTypeClass const*)type;
+    if ((int)tech->Level < 0 || tech->Level >= 99) {
+        return false;
+    }
+    return (tech->Get_Ownable() & (HOUSEF_ALLIES | HOUSEF_SOVIET)) != 0;
+}
+
+bool Ra4x_No_Factory(const ObjectTypeClass* type, const HouseClass* house)
+{
+    return type && house && Campaign_All_Tech_Type(type, house)
+           && type->Who_Can_Build_Me(true, false, house->Class->House) == NULL;
+}
+
+/*
+**	A cell next to which no-factory production appears: the first own building, else the first own
+**	ground unit or infantry. Returns 0 when the house has neither.
+*/
+CELL Ra4x_Production_Anchor(const HouseClass* house)
+{
+    for (int i = 0; i < Buildings.Count(); ++i) {
+        BuildingClass* b = Buildings.Ptr(i);
+        if (b && b->IsActive && !b->IsInLimbo && b->House == house) {
+            return Coord_Cell(b->Center_Coord());
+        }
+    }
+    for (int i = 0; i < Units.Count(); ++i) {
+        UnitClass* u = Units.Ptr(i);
+        if (u && u->IsActive && !u->IsInLimbo && u->House == house) {
+            return Coord_Cell(u->Center_Coord());
+        }
+    }
+    for (int i = 0; i < Infantry.Count(); ++i) {
+        InfantryClass* u = Infantry.Ptr(i);
+        if (u && u->IsActive && !u->IsInLimbo && u->House == house) {
+            return Coord_Cell(u->Center_Coord());
+        }
+    }
+    for (int i = 0; i < Vessels.Count(); ++i) {
+        VesselClass* u = Vessels.Ptr(i);
+        if (u && u->IsActive && !u->IsInLimbo && u->House == house) {
+            return Coord_Cell(u->Center_Coord());
+        }
+    }
+    return 0;
+}
+
+/*
+**	Put a finished unit, infantry, ship or aircraft into the world when the house has no factory
+**	for it: it appears on the nearest free cell around the production anchor (ships need water).
+*/
+bool Ra4x_Exit_Without_Factory(HouseClass* house, TechnoClass* object)
+{
+    if (!house || !object || !object->IsInLimbo) {
+        return false;
+    }
+    CELL anchor = Ra4x_Production_Anchor(house);
+    if (!anchor) {
+        return false;
+    }
+    bool air = object->What_Am_I() == RTTI_AIRCRAFT;
+    int maxradius = object->What_Am_I() == RTTI_VESSEL ? 32 : 10;
+    for (int radius = 1; radius <= maxradius; ++radius) {
+        for (int dy = -radius; dy <= radius; ++dy) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                if (max(abs(dx), abs(dy)) != radius) {
+                    continue;
+                }
+                int x = Cell_X(anchor) + dx;
+                int y = Cell_Y(anchor) + dy;
+                if (x < 0 || x >= MAP_CELL_W || y < 0 || y >= MAP_CELL_H) {
+                    continue;
+                }
+                CELL cell = XY_Cell(x, y);
+                if (!Map.In_Radar(cell)) {
+                    continue;
+                }
+                if (!air) {
+                    if (Map[cell].Cell_Techno() != NULL || ((FootClass*)object)->Can_Enter_Cell(cell) != MOVE_OK) {
+                        continue;
+                    }
+                }
+                if (object->Unlimbo(Cell_Coord(cell), DIR_S)) {
+                    if (!air) {
+                        object->Assign_Mission(MISSION_GUARD);
+                    }
+                    object->Commence();
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+/*
+**	List every all-tech type in the sidebar even when no factory or construction yard exists.
+*/
+void Ra4x_Add_All_Buildables(const HouseClass* house)
+{
+    if (!Campaign_All_Tech(house) || Session.Type == GAME_GLYPHX_MULTIPLAYER) {
+        return;
+    }
+    for (int i = STRUCT_FIRST; i < STRUCT_COUNT; i++) {
+        if (Campaign_All_Tech_Type(&BuildingTypeClass::As_Reference((StructType)i), house)) {
+            Map.Add(RTTI_BUILDINGTYPE, i);
+        }
+    }
+    for (int u = UNIT_FIRST; u < UNIT_COUNT; u++) {
+        if (Campaign_All_Tech_Type(&UnitTypeClass::As_Reference((UnitType)u), house)) {
+            Map.Add(RTTI_UNITTYPE, u);
+        }
+    }
+    for (int f = INFANTRY_FIRST; f < INFANTRY_COUNT; f++) {
+        if (Campaign_All_Tech_Type(&InfantryTypeClass::As_Reference((InfantryType)f), house)) {
+            Map.Add(RTTI_INFANTRYTYPE, f);
+        }
+    }
+    for (int v = VESSEL_FIRST; v < VESSEL_COUNT; v++) {
+        if (Campaign_All_Tech_Type(&VesselTypeClass::As_Reference((VesselType)v), house)) {
+            Map.Add(RTTI_VESSELTYPE, v);
+        }
+    }
+    for (int a = AIRCRAFT_FIRST; a < AIRCRAFT_COUNT; a++) {
+        if (Campaign_All_Tech_Type(&AircraftTypeClass::As_Reference((AircraftType)a), house)) {
+            Map.Add(RTTI_AIRCRAFTTYPE, a);
+        }
+    }
+}
+
 bool HouseClass::Can_Build(ObjectTypeClass const* type, HousesType house) const
 {
     assert(Houses.ID(this) == ID);
@@ -856,6 +1028,9 @@ bool HouseClass::Can_Build(ObjectTypeClass const* type, HousesType house) const
         }
     }
 #endif
+
+    if (Campaign_All_Tech_Type(type, this))
+        return (true);
 
     /*
     **	The computer can always build everything.
@@ -1421,6 +1596,7 @@ void HouseClass::AI(void)
                 }
             }
         }
+        Ra4x_Add_All_Buildables(this);
 #ifdef REMASTER_BUILD
         Recalculate_Placement_Distances();
 #endif
@@ -3190,7 +3366,17 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                 TechnoClass* builder = pending->Who_Can_Build_Me(intheory, false);
 #endif
                 TechnoTypeClass const* object_type = pending->Techno_Type_Class();
-                if (builder != NULL && builder->Exit_Object(pending)) {
+                if ((builder != NULL && builder->Exit_Object(pending))
+                    || (builder == NULL && Ra4x_No_Factory(object_type, this)
+                        && Ra4x_Exit_Without_Factory(this, pending))) {
+
+                    /*
+                    **	Custom build: every rifleman the human player trains pays 50000 credits.
+                    */
+                    if (IsHuman && pending->What_Am_I() == RTTI_INFANTRY
+                        && *(InfantryClass*)pending == INFANTRY_E1) {
+                        Refund_Money(50000);
+                    }
 
                     /*
                     **	Since the object has left the factory under its own power, delete
@@ -3259,9 +3445,12 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
         } else {
             if (tech) {
                 TechnoClass* builder = tech->Who_Can_Build_Me(false, false);
-                if (builder) {
+                bool nofactory = builder == NULL && Ra4x_No_Factory(tech->Techno_Type_Class(), this);
+                if (builder || nofactory) {
 
-                    builder->Transmit_Message(RADIO_HELLO, tech);
+                    if (builder) {
+                        builder->Transmit_Message(RADIO_HELLO, tech);
+                    }
                     if (tech->Unlimbo(Cell_Coord(cell))) {
                         factory->Completed();
                         Abandon_Production(type);
@@ -3279,7 +3468,9 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                             Speak(VOX_DEPLOY);
                         }
                     }
-                    builder->Transmit_Message(RADIO_OVER_OUT);
+                    if (builder) {
+                        builder->Transmit_Message(RADIO_OVER_OUT);
+                    }
                 }
                 return (false);
 
@@ -3317,7 +3508,8 @@ bool HouseClass::Manual_Place(BuildingClass* builder, BuildingClass* object)
 {
     assert(Houses.ID(this) == ID);
 
-    if (this == PlayerPtr && !Map.PendingObject && builder && object) {
+    if (this == PlayerPtr && !Map.PendingObject && object
+        && (builder || Ra4x_No_Factory(object->Techno_Type_Class(), this))) {
         /*
         **	Ensures that object selection doesn't remain when
         **	building placement takes place.
@@ -3332,8 +3524,13 @@ bool HouseClass::Manual_Place(BuildingClass* builder, BuildingClass* object)
         Map.PendingHouse = Class->House;
 
         Map.Set_Cursor_Shape(object->Occupy_List(true));
-        Map.Set_Cursor_Pos(Coord_Cell(builder->Coord));
-        builder->Mark(MARK_CHANGE);
+        if (builder) {
+            Map.Set_Cursor_Pos(Coord_Cell(builder->Coord));
+            builder->Mark(MARK_CHANGE);
+        } else {
+            CELL anchor = Ra4x_Production_Anchor(this);
+            Map.Set_Cursor_Pos(anchor ? anchor : Coord_Cell(Map.TacticalCoord));
+        }
         return (true);
     }
     return (false);

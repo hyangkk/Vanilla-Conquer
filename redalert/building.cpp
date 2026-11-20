@@ -105,6 +105,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "utracker.h"
 #include "event.h"
 #include "rules.h"
@@ -5154,7 +5155,8 @@ void BuildingClass::Detach_All(bool all)
         if (factory) {
             TechnoClass* object = factory->Get_Object();
             IsInLimbo = true;
-            if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, House->Class->House)) {
+            if (object && !object->Techno_Type_Class()->Who_Can_Build_Me(true, false, House->Class->House)
+                && !Campaign_All_Tech_Type(object->Techno_Type_Class(), House)) {
                 House->Abandon_Production(Class->ToBuild);
             }
             IsInLimbo = false;

@@ -1348,6 +1348,12 @@ void MapClass::Logic(void)
         }
     }
 
+    /*
+    **	Custom build: ore and gems grow and spread four times as fast. The scan below re-visits the
+    **	cell it stopped on, so it advances (subcount - 1) cells per tick; quadruple that advance.
+    */
+    subcount = (max(subcount, 2) - 1) * 4 + 1;
+
     subcount = max(subcount, 1);
     int index;
     for (index = TiberiumScan; index < MAP_CELL_TOTAL; index++) {

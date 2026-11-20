@@ -76,6 +76,7 @@
 
 #include "function.h"
 #include "factory.h"
+#include "campaigntech.h"
 
 void* SidebarClass::SidebarShape = NULL;
 void* SidebarClass::SidebarMiddleShape = NULL;
@@ -1347,7 +1348,7 @@ void SidebarClass::StripClass::Deactivate(void)
  *=============================================================================================*/
 bool SidebarClass::StripClass::Add(RTTIType type, int id, bool via_capture)
 {
-    if (BuildableCount <= MAX_BUILDABLES) {
+    if (BuildableCount < MAX_BUILDABLES) {
         for (int index = 0; index < BuildableCount; index++) {
             if (Buildables[index].BuildableType == type && Buildables[index].BuildableID == id) {
                 return (false);
@@ -1875,7 +1876,8 @@ bool SidebarClass::StripClass::Recalc(void)
     for (int index = 0; index < BuildableCount; index++) {
         TechnoTypeClass const* tech = Fetch_Techno_Type(Buildables[index].BuildableType, Buildables[index].BuildableID);
         if (tech != NULL) {
-            ok = tech->Who_Can_Build_Me(true, false, PlayerPtr->Class->House) != NULL;
+            ok = tech->Who_Can_Build_Me(true, false, PlayerPtr->Class->House) != NULL
+                 || Campaign_All_Tech_Type(tech, PlayerPtr);
         } else {
             if ((unsigned)Buildables[index].BuildableID < SPC_COUNT) {
                 ok = PlayerPtr->SuperWeapon[Buildables[index].BuildableID].Is_Present();
@@ -2138,7 +2140,7 @@ int SidebarClass::StripClass::SelectClass::Action(unsigned flags, KeyNumType& ke
                                 Map.IsTargettingMode = SPC_ANY;
                             } else {
                                 BuildingClass* builder = pending->Who_Can_Build_Me(false, false);
-                                if (!builder) {
+                                if (!builder && !Ra4x_No_Factory(pending->Techno_Type_Class(), PlayerPtr)) {
                                     OutList.Add(EventClass(EventClass::ABANDON, otype, oid));
                                     Speak(VOX_NO_FACTORY);
                                 } else {

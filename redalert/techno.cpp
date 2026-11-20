@@ -2534,6 +2534,20 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         }
 
         /*
+        **	Custom build: everything owned by a human player (infantry, vehicles, ships,
+        **	aircraft and buildings) regenerates 2% of its maximum strength every game
+        **	second (at least 1 point), free of charge. Enemies do not.
+        */
+        if ((Frame % TICKS_PER_SECOND) == 0 && House && House->IsHuman && !IsInLimbo && Strength > 0) {
+            int maximum = Techno_Type_Class()->MaxStrength;
+            if ((int)Strength < maximum) {
+                int step = max(1, maximum / 50);
+                Strength = min(maximum, (int)Strength + step);
+                Mark(MARK_CHANGE);
+            }
+        }
+
+        /*
         **	Cloaking device processing.
         */
         Cloaking_AI();
@@ -3913,6 +3927,13 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
             break;
         }
         if (weapon != NULL) {
+            /*
+            **	Custom build: a human player's Tesla coils reach 50% farther.
+            */
+            if (What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA
+                && House->IsHuman) {
+                return (weapon->Range * 3 / 2);
+            }
             return (weapon->Range);
         }
         return (0);
@@ -6580,6 +6601,14 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         assert(!IsInLimbo);
 
         int sight_range = Techno_Type_Class()->SightRange;
+
+        /*
+        **	Custom build: a human player's Tesla coil reveals out to its longer reach (sight caps at 10).
+        */
+        if (sight_range && What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA
+            && House->IsHuman) {
+            sight_range = min(10, max(sight_range, Weapon_Range(0) / CELL_LEPTON_W + 1));
+        }
 
         if (sight_range) {
 

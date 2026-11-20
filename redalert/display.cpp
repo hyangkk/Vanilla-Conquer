@@ -86,6 +86,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "vortex.h"
 #include "xpipe.h"
 #include "common/fading.h"
@@ -819,6 +820,50 @@ bool DisplayClass::Passes_Proximity_Check(ObjectTypeClass const* object,
                     }
                 }
             }
+        }
+    }
+
+    /*
+    **	Custom build: a human player may place structures within eight cells of their own buildings,
+    **	ground units, infantry, ships or helicopters, so a base can grow quickly or be started without
+    **	a construction yard. Computer players keep the original rule.
+    */
+    HouseClass* owner = HouseClass::As_Pointer(house);
+    if (!retval && !noradar && owner && owner->IsHuman && Session.Type != GAME_GLYPHX_MULTIPLAYER) {
+        const int reach = 8;
+        int minx = MAP_CELL_W, miny = MAP_CELL_H, maxx = -1, maxy = -1;
+        for (short const* fp = list; *fp != REFRESH_EOL; fp++) {
+            CELL foot = trycell + *fp;
+            minx = min(minx, (int)Cell_X(foot));
+            maxx = max(maxx, (int)Cell_X(foot));
+            miny = min(miny, (int)Cell_Y(foot));
+            maxy = max(maxy, (int)Cell_Y(foot));
+        }
+        for (int y = max(0, miny - reach); y <= min(MAP_CELL_H - 1, maxy + reach) && !retval; y++) {
+            for (int x = max(0, minx - reach); x <= min(MAP_CELL_W - 1, maxx + reach) && !retval; x++) {
+                CELL nearcell = XY_Cell(x, y);
+                if (!In_Radar(nearcell)) {
+                    continue;
+                }
+                TechnoClass* techno = (*this)[nearcell].Cell_Techno();
+                if (techno != NULL && techno->House == owner && !techno->IsInLimbo) {
+                    retval = true;
+                }
+            }
+        }
+        for (int i = 0; i < Aircraft.Count() && !retval && maxx >= 0; i++) {
+            AircraftClass* air = Aircraft.Ptr(i);
+            if (air == NULL || !air->IsActive || air->IsInLimbo || !(air->House == owner) || air->Class->IsFixedWing) {
+                continue;
+            }
+            CELL ac = Coord_Cell(air->Center_Coord());
+            if (Cell_X(ac) >= minx - reach && Cell_X(ac) <= maxx + reach && Cell_Y(ac) >= miny - reach
+                && Cell_Y(ac) <= maxy + reach) {
+                retval = true;
+            }
+        }
+        if (house == PlayerPtr->Class->House && retval) {
+            PassedProximity = true;
         }
     }
 

@@ -46,6 +46,7 @@
 
 #include "function.h"
 #include "factory.h"
+#include "campaigntech.h"
 #include "xpipe.h"
 #include "blowpipe.h"
 #include "shapipe.h"
@@ -909,6 +910,11 @@ bool Load_Game(const char* file_name)
     }
 
     ScenarioInit = 0;
+
+    // Custom build: saves may hold a sidebar computed before the all-tech rule; rebuild it.
+    if (Campaign_All_Tech(PlayerPtr)) {
+        PlayerPtr->IsRecalcNeeded = true;
+    }
 
     if (load_net) {
 
