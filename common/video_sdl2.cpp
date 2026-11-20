@@ -958,17 +958,51 @@ private:
     **	Custom build: native-resolution UI art (sidebar cameos) drawn over its reduced copy on the
     **	canvas, but only while the canvas still shows exactly that copy (menus/tooltips win).
     */
+    /*
+    **	Scale2x (EPX) on palette indices: doubles pixel art while keeping edges and pixel text sharp.
+    */
+    static void Scale2x(const std::vector<unsigned char>& in, int w, int h, std::vector<unsigned char>& out)
+    {
+        out.resize(size_t(w) * h * 4);
+        const int ow = w * 2;
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const unsigned char P = in[y * w + x];
+                const unsigned char A = in[(y > 0 ? y - 1 : y) * w + x];
+                const unsigned char D = in[(y < h - 1 ? y + 1 : y) * w + x];
+                const unsigned char C = in[y * w + (x > 0 ? x - 1 : x)];
+                const unsigned char B = in[y * w + (x < w - 1 ? x + 1 : x)];
+                unsigned char* o = &out[(y * 2) * ow + x * 2];
+                o[0] = (C == A && C != D && A != B) ? A : P;
+                o[1] = (A == B && A != C && B != D) ? B : P;
+                o[ow] = (D == C && D != B && C != A) ? C : P;
+                o[ow + 1] = (B == D && B != A && D != C) ? D : P;
+            }
+        }
+    }
+
+    /*
+    **	Custom build: native-resolution UI art (sidebar cameos) drawn over its reduced copy on the
+    **	canvas, but only while the canvas still shows exactly that copy (menus/tooltips win). The art
+    **	is enlarged 4x with Scale2x twice and then filtered to the screen size, so it stays crisp.
+    */
     bool RenderDetails()
     {
         const auto& details = RenderLayers::frame.details;
         if (details.empty() || !surface || surface->format->BytesPerPixel != 1)
             return false;
+        SDL_Color* colors = palette ? palette->colors : nullptr;
+        if (!colors)
+            return false;
+        const int up = 4;
         int cellWidth = 0, cellHeight = 0;
         for (const auto& detail : details) {
-            cellWidth = std::max(cellWidth, detail.source_width);
-            cellHeight = std::max(cellHeight, detail.source_height);
+            cellWidth = std::max(cellWidth, detail.source_width * up);
+            cellHeight = std::max(cellHeight, detail.source_height * up);
         }
         const int atlasHeight = cellHeight * int(details.size());
+        bool all = !detailTexture || detailWidth != cellWidth || detailHeight != atlasHeight
+                   || std::memcmp(detailPalette, colors, sizeof(detailPalette)) != 0;
         if (!detailTexture || detailWidth != cellWidth || detailHeight != atlasHeight) {
             if (detailTexture)
                 SDL_DestroyTexture(detailTexture);
@@ -978,24 +1012,30 @@ private:
                 SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, cellWidth, atlasHeight);
             if (!detailTexture)
                 return false;
-            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeLinear); // smooth, no uneven pixel doubling
-
+            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeLinear);
         }
-        SDL_Color* colors = palette ? palette->colors : nullptr;
-        if (!colors)
-            return false;
-        detailPixels.assign(size_t(cellWidth) * atlasHeight, 0);
+        std::memcpy(detailPalette, colors, sizeof(detailPalette));
+        detailHash.resize(details.size(), 0);
         for (size_t i = 0; i < details.size(); ++i) {
             const auto& detail = details[i];
-            for (int y = 0; y < detail.source_height; ++y)
-                for (int x = 0; x < detail.source_width; ++x) {
-                    const SDL_Color color = colors[detail.pixels[y * detail.source_width + x]];
-                    unsigned char rgba[4] = {color.r, color.g, color.b, 255};
-                    std::memcpy(&detailPixels[(i * cellHeight + y) * cellWidth + x], rgba, 4);
-                }
+            uint64_t hash = 1469598103934665603ULL ^ uint64_t(detail.source_width * 131 + detail.source_height);
+            for (unsigned char c : detail.pixels)
+                hash = (hash ^ c) * 1099511628211ULL;
+            if (!all && detailHash[i] == hash)
+                continue;
+            detailHash[i] = hash;
+            Scale2x(detail.pixels, detail.source_width, detail.source_height, scaleTmp2);
+            Scale2x(scaleTmp2, detail.source_width * 2, detail.source_height * 2, scaleTmp4);
+            const int w4 = detail.source_width * up, h4 = detail.source_height * up;
+            detailPixels.resize(size_t(w4) * h4);
+            for (int p = 0; p < w4 * h4; ++p) {
+                const SDL_Color color = colors[scaleTmp4[p]];
+                unsigned char rgba[4] = {color.r, color.g, color.b, 255};
+                std::memcpy(&detailPixels[p], rgba, 4);
+            }
+            SDL_Rect cell = {0, int(i) * cellHeight, w4, h4};
+            SDL_UpdateTexture(detailTexture, &cell, detailPixels.data(), w4 * 4);
         }
-        if (SDL_UpdateTexture(detailTexture, nullptr, detailPixels.data(), cellWidth * 4) != 0)
-            return false;
         const float sx = float(render_dst.w) / surface->w, sy = float(render_dst.h) / surface->h;
         bool drawn = false;
         for (size_t i = 0; i < details.size(); ++i) {
@@ -1003,7 +1043,7 @@ private:
             if (!RenderLayers::Detail_Visible(
                     detail, static_cast<unsigned char*>(surface->pixels), surface->w, surface->h, surface->pitch))
                 continue;
-            SDL_Rect src = {0, int(i) * cellHeight, detail.source_width, detail.source_height};
+            SDL_Rect src = {0, int(i) * cellHeight, detail.source_width * up, detail.source_height * up};
             SDL_FRect dst = {render_dst.x + detail.x * sx, render_dst.y + detail.y * sy, detail.width * sx, detail.height * sy};
             SDL_RenderCopyF(renderer, detailTexture, &src, &dst);
             drawn = true;
@@ -1029,6 +1069,9 @@ private:
     }
     SDL_Texture* detailTexture = nullptr;
     int detailWidth = 0, detailHeight = 0;
+    SDL_Color detailPalette[256] = {};
+    std::vector<uint64_t> detailHash;
+    std::vector<unsigned char> scaleTmp2, scaleTmp4;
     std::vector<uint32_t> detailPixels;
     SDL_Surface* surface;
     SDL_Surface* windowSurface;
