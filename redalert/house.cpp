@@ -828,7 +828,9 @@ HouseStaticClass::HouseStaticClass(void)
 */
 bool Campaign_All_Tech(const HouseClass* house)
 {
-    return house && Settings.Options.CampaignAllTech && Session.Type == GAME_NORMAL && house == PlayerPtr
+    return house && Settings.Options.CampaignAllTech
+           && (Session.Type == GAME_NORMAL || Session.Type == GAME_SKIRMISH) // Custom build: skirmish too
+           && house == PlayerPtr
            && house->IsHuman;
 }
 
@@ -842,7 +844,8 @@ bool Ra4x_Smart_AI_Enabled = true;
 
 bool Ra4x_Smart_AI(const HouseClass* house)
 {
-    return Ra4x_Smart_AI_Enabled && house != NULL && house->IsActive && Session.Type == GAME_NORMAL
+    return Ra4x_Smart_AI_Enabled && house != NULL && house->IsActive
+           && (Session.Type == GAME_NORMAL || Session.Type == GAME_SKIRMISH) // Custom build: skirmish too
            && !house->IsHuman && PlayerPtr != NULL && house != PlayerPtr && house->Class->House != HOUSE_NEUTRAL
            && !house->Is_Ally(PlayerPtr);
 }
