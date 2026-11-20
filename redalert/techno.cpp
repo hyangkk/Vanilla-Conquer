@@ -143,111 +143,118 @@ static bool Ra4x_Tesla_Tank(TechnoClass const* t)
 }
 
 /*
-**	Custom build: the player's Tesla tanks discharge an electric nova (every 1-3 seconds it zaps every
-**	enemy within 10 cells) and call down a strike on a random nearby enemy every second. The bolts
-**	are transient visuals kept outside the saved objects.
+**	Custom build: chain lightning. A bolt fired by the player's Tesla coils and Tesla tanks jumps on
+**	from its target to nearby enemies like a Mutalisk glaive: 3 times, 4 when the enemy has 30+
+**	soldiers/vehicles/ships/aircraft on the map, 5 with 50+. Each jump does 3/4 of the previous
+**	damage. The extra bolts are transient visuals kept outside the saved objects.
 */
 struct Ra4xBolt
 {
-    TechnoClass const* Source;
+    TechnoClass const* Source; // object that draws the bolt
+    COORDINATE From;
     COORDINATE Target;
     long Expires; // Frame after which the bolt is gone
 };
 static Ra4xBolt Ra4x_Bolts[64];
-static long Ra4x_Nova_Next[1024];
-static long Ra4x_Strike_Next[1024];
 
-static void Ra4x_Add_Bolt(TechnoClass const* source, COORDINATE target)
+static void Ra4x_Add_Bolt(TechnoClass const* source, COORDINATE from, COORDINATE target)
 {
     for (int i = 0; i < 64; i++) {
         if (Ra4x_Bolts[i].Expires <= Frame) {
             Ra4x_Bolts[i].Source = source;
+            Ra4x_Bolts[i].From = from;
             Ra4x_Bolts[i].Target = target;
-            Ra4x_Bolts[i].Expires = Frame + 4;
+            Ra4x_Bolts[i].Expires = Frame + 6;
             return;
         }
     }
 }
 
-static int Ra4x_Enemies_Near(TechnoClass const* self, int range, TechnoClass** out, int max)
+static bool Ra4x_Has_Bolts(TechnoClass const* source)
 {
-    int n = 0;
-    COORDINATE center = self->Center_Coord();
-    auto consider = [&](TechnoClass* t) {
-        if (n < max && t != NULL && t->IsActive && !t->IsInLimbo && t->Strength > 0 && !self->House->Is_Ally(t)
-            && t->Owner() != HOUSE_NEUTRAL && ::Distance(center, t->Center_Coord()) <= range) {
-            out[n++] = t;
+    for (int i = 0; i < 64; i++) {
+        if (Ra4x_Bolts[i].Source == source && Ra4x_Bolts[i].Expires > Frame) {
+            return true;
         }
-    };
-    for (int i = 0; i < Units.Count(); i++)
-        consider(Units.Ptr(i));
-    for (int i = 0; i < Infantry.Count(); i++)
-        consider(Infantry.Ptr(i));
-    for (int i = 0; i < Vessels.Count(); i++)
-        consider(Vessels.Ptr(i));
-    for (int i = 0; i < Buildings.Count(); i++)
-        consider(Buildings.Ptr(i));
-    for (int i = 0; i < Aircraft.Count(); i++)
-        consider(Aircraft.Ptr(i));
-    return n;
+    }
+    return false;
 }
 
-static void Ra4x_Tesla_Tank_Specials(TechnoClass* self)
+static bool Ra4x_Chain_Source(TechnoClass const* t)
 {
-    int slot = self->ID & 1023;
-    TechnoClass* targets[128];
-
-    /*
-    **	A new mission restarts the frame counter; drop timers left far in the future.
-    */
-    if (Ra4x_Nova_Next[slot] > Frame + TICKS_PER_SECOND * 4) {
-        Ra4x_Nova_Next[slot] = Frame;
+    if (!t->House->IsHuman) {
+        return false;
     }
-    if (Ra4x_Strike_Next[slot] > Frame + TICKS_PER_SECOND * 2) {
-        Ra4x_Strike_Next[slot] = Frame;
-    }
+    return (t->What_Am_I() == RTTI_UNIT && *(UnitClass const*)t == UNIT_TESLATANK)
+           || (t->What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)t == STRUCT_TESLA);
+}
 
-    if (Frame >= Ra4x_Nova_Next[slot]) {
-        Ra4x_Nova_Next[slot] = Frame + Random_Pick(TICKS_PER_SECOND, TICKS_PER_SECOND * 3);
-        WeaponTypeClass const* zap = BuildingTypeClass::As_Reference(STRUCT_TESLA).PrimaryWeapon;
-        int n = Ra4x_Enemies_Near(self, 10 * CELL_LEPTON_W, targets, 128);
-        for (int i = 0; i < n; i++) {
-            if (!targets[i]->IsActive || targets[i]->IsInLimbo) {
-                continue;
+static bool Ra4x_Chain_Enemy(TechnoClass const* self, TechnoClass const* t)
+{
+    return t != NULL && t->IsActive && !t->IsInLimbo && t->Strength > 0 && !self->House->Is_Ally(t)
+           && t->Owner() != HOUSE_NEUTRAL;
+}
+
+int Ra4x_Chain_Bounces(TechnoClass const* self)
+{
+    int enemies = 0;
+    for (int i = 0; i < Units.Count(); i++)
+        enemies += Ra4x_Chain_Enemy(self, Units.Ptr(i));
+    for (int i = 0; i < Infantry.Count(); i++)
+        enemies += Ra4x_Chain_Enemy(self, Infantry.Ptr(i));
+    for (int i = 0; i < Vessels.Count(); i++)
+        enemies += Ra4x_Chain_Enemy(self, Vessels.Ptr(i));
+    for (int i = 0; i < Aircraft.Count(); i++)
+        enemies += Ra4x_Chain_Enemy(self, Aircraft.Ptr(i));
+    return enemies >= 50 ? 5 : (enemies >= 30 ? 4 : 3);
+}
+
+static void Ra4x_Chain_Lightning(TechnoClass* self, TARGET target, COORDINATE target_coord, WeaponTypeClass const* weapon)
+{
+    TechnoClass const* hit[8];
+    int nhit = 0;
+    TechnoClass* first = As_Techno(target);
+    if (first != NULL) {
+        hit[nhit++] = first;
+    }
+    COORDINATE from = target_coord;
+    int damage = weapon->Attack;
+    int bounces = Ra4x_Chain_Bounces(self);
+    for (int b = 0; b < bounces; b++) {
+        damage = max(1, damage * 3 / 4);
+        TechnoClass* next = NULL;
+        int best = 5 * CELL_LEPTON_W + 1;
+        auto consider = [&](TechnoClass* t) {
+            if (!Ra4x_Chain_Enemy(self, t))
+                return;
+            for (int k = 0; k < nhit; k++)
+                if (hit[k] == t)
+                    return;
+            int d = ::Distance(from, t->Center_Coord());
+            if (d < best) {
+                best = d;
+                next = t;
             }
-            if (i < 16) {
-                Ra4x_Add_Bolt(self, targets[i]->Center_Coord());
-            }
-            int damage = zap->Attack;
-            targets[i]->Take_Damage(damage, 0, WarheadType(zap->WarheadPtr->ID), self);
+        };
+        for (int i = 0; i < Units.Count(); i++)
+            consider(Units.Ptr(i));
+        for (int i = 0; i < Infantry.Count(); i++)
+            consider(Infantry.Ptr(i));
+        for (int i = 0; i < Vessels.Count(); i++)
+            consider(Vessels.Ptr(i));
+        for (int i = 0; i < Buildings.Count(); i++)
+            consider(Buildings.Ptr(i));
+        for (int i = 0; i < Aircraft.Count(); i++)
+            consider(Aircraft.Ptr(i));
+        if (next == NULL) {
+            break;
         }
-        if (n > 0) {
-            Sound_Effect(VOC_TESLA_ZAP, self->Center_Coord());
-        }
-    }
-
-    if (Frame >= Ra4x_Strike_Next[slot]) {
-        Ra4x_Strike_Next[slot] = Frame + TICKS_PER_SECOND;
-        int n = Ra4x_Enemies_Near(self, 15 * CELL_LEPTON_W, targets, 128);
-        if (n > 0) {
-            TechnoClass* victim = targets[Random_Pick(0, n - 1)];
-            COORDINATE where = victim->Center_Coord();
-            new AnimClass(ANIM_ART_EXP1, where);
-            new AnimClass(ANIM_FBALL1, Coord_Move(where, DIR_N, 0x0020));
-            Sound_Effect(VOC_KABOOM22, where);
-            int damage = 300;
-            victim->Take_Damage(damage, 0, WARHEAD_HE, self);
-        }
-    }
-
-    bool zapping = false;
-    for (int i = 0; i < 64; i++) {
-        if (Ra4x_Bolts[i].Source == self && Ra4x_Bolts[i].Expires > Frame) {
-            zapping = true;
-        }
-    }
-    if (zapping) {
-        Map.Flag_To_Redraw(true);
+        COORDINATE to = next->Center_Coord();
+        Ra4x_Add_Bolt(self, from, to);
+        hit[nhit++] = next;
+        int d = damage;
+        next->Take_Damage(d, 0, WarheadType(weapon->WarheadPtr->ID), self);
+        from = to;
     }
 }
 
@@ -1270,8 +1277,8 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window) const
         Electric_Zap(ElectricZapTarget, ElectricZapWhich, window);
     }
     for (int i = 0; i < 64; i++) {
-        if (Ra4x_Bolts[i].Source == this && Ra4x_Bolts[i].Expires > Frame && Ra4x_Tesla_Tank(this)) {
-            Electric_Zap(Ra4x_Bolts[i].Target, 0, window); // Custom build: Tesla tank nova bolts
+        if (Ra4x_Bolts[i].Source == this && Ra4x_Bolts[i].Expires > Frame && Ra4x_Chain_Source(this)) {
+            Electric_Zap(Ra4x_Bolts[i].Target, 0, window, Ra4x_Bolts[i].From); // Custom build: chain lightning
         }
     }
 
@@ -2796,8 +2803,8 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
             }
         }
 
-        if (Ra4x_Tesla_Tank(this) && !IsInLimbo && Strength > 0) {
-            Ra4x_Tesla_Tank_Specials(this);
+        if (Ra4x_Has_Bolts(this)) {
+            Map.Flag_To_Redraw(true); // keep chain-lightning bolts animated and erased
         }
 
         /*
@@ -3667,6 +3674,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                 ElectricZapDelay = 3;
                 ElectricZapTarget = target_coord;
                 ElectricZapWhich = which;
+                if (Ra4x_Chain_Source(this)) {
+                    Ra4x_Chain_Lightning(this, target, target_coord, weapon);
+                }
 #ifdef FIXIT_CSII //	checked - ajw 9/28/98
                 if (What_Am_I() != RTTI_INFANTRY) {
                     Set_Stage(0);
