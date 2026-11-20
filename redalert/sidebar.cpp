@@ -205,7 +205,7 @@ static int Ra4x_Cameo_W(void)
     **	Cameos are drawn on the canvas at the size that maps to their native 64x48 pixels on a 1280-wide
     **	presentation; the SDL presenter then overlays the native art (RenderLayers details).
     */
-    return Bound((64 * SeenBuff.Get_Width() / 1280) & ~1, 32, 64);
+    return Bound((64 * SeenBuff.Get_Width() / 1024) & ~1, 32, 64); // 50x37 on an 800-wide canvas
 }
 
 static int Ra4x_Cameo_H(void)
