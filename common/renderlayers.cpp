@@ -172,6 +172,56 @@ void Mark(const unsigned char* destination, int width, int height, int pitch,
         }
     }
 }
+void Clear_Details()
+{
+    frame.details.clear();
+    ++frame.serial;
+}
+bool Detail_Visible(const Detail& detail, const unsigned char* pixels, int width, int height, int pitch)
+{
+    if (!pixels || detail.x < 0 || detail.y < 0 || detail.width <= 0 || detail.height <= 0
+        || detail.x + detail.width > width || detail.y + detail.height > height
+        || detail.reference.size() != size_t(detail.width * detail.height))
+        return false;
+    for (int row = 0; row < detail.height; ++row)
+        if (std::memcmp(detail.reference.data() + row * detail.width, pixels + (detail.y + row) * pitch + detail.x,
+                        detail.width)
+            != 0)
+            return false;
+    return true;
+}
+void Add_Detail(GraphicViewPortClass& source, int source_width, int source_height,
+                GraphicViewPortClass& destination, int x, int y, int width, int height)
+{
+    auto existing = std::find_if(frame.details.begin(), frame.details.end(),
+                                 [&](const Detail& detail) { return detail.x == x && detail.y == y; });
+    if ((existing == frame.details.end() && frame.details.size() >= 64) || x < 0 || y < 0 || width <= 0 || height <= 0
+        || x + width > destination.Get_Width() || y + height > destination.Get_Height() || source_width <= 0
+        || source_height <= 0 || source_width > source.Get_Width() || source_height > source.Get_Height())
+        return;
+    Detail detail{x, y, width, height, source_width, source_height, {}, {}};
+    if (!source.Lock())
+        return;
+    auto pixels = reinterpret_cast<const unsigned char*>(source.Get_Offset());
+    const int pitch = source.Get_Width() + source.Get_XAdd() + source.Get_Pitch();
+    detail.pixels.resize(source_width * source_height);
+    for (int row = 0; row < source_height; ++row)
+        std::memcpy(detail.pixels.data() + row * source_width, pixels + row * pitch, source_width);
+    source.Unlock();
+    if (!destination.Lock())
+        return;
+    const auto target = reinterpret_cast<const unsigned char*>(destination.Get_Offset());
+    const int target_pitch = destination.Get_Width() + destination.Get_XAdd() + destination.Get_Pitch();
+    detail.reference.resize(width * height);
+    for (int row = 0; row < height; ++row)
+        std::memcpy(detail.reference.data() + row * width, target + (y + row) * target_pitch + x, width);
+    destination.Unlock();
+    if (existing == frame.details.end())
+        frame.details.push_back(std::move(detail));
+    else
+        *existing = std::move(detail);
+    ++frame.serial;
+}
 void Finish()
 {
     if (!frame.capturing || !foreground) return;

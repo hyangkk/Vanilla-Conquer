@@ -145,7 +145,7 @@ int Hud_Shift_X(void)
 
 int Power_Shift_X(void)
 {
-    return Hud_Shift_X() - 64 * RESFACTOR;
+    return SeenBuff.Get_Width() - Ra4x_Side_Width() - 10 * ICON_PIXEL_W * RESFACTOR; // POWER_X
 }
 
 void PowerClass::One_Time(void)

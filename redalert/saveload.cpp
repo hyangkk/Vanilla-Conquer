@@ -858,7 +858,8 @@ bool Load_Game(const char* file_name)
             if (Scen.Scenario > 19 || AntsEnabled) {
                 RequiredCD = 2;
 #ifdef FIXIT_CSII //	checked - ajw 9/28/98
-                if (Scen.Scenario >= 36) {
+                if (Scen.Scenario >= 36
+                    && !(Scen.ScenarioName[2] == 'U' && Scen.Scenario <= 38)) { // Custom build: SCU36-38 are CS
                     RequiredCD = 3;
 #ifdef BOGUSCD
                     RequiredCD = -1;

@@ -48,6 +48,7 @@ int Hud_Shift_X(void);
 **	and production strips sit 64 units further left than the radar housing.
 */
 int Power_Shift_X(void);
+int Ra4x_Side_Width(void); // Custom build: width of the wide production sidebar in pixels (sidebar.cpp)
 
 class PowerClass : public RadarClass
 {

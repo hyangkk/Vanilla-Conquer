@@ -75,6 +75,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "common/renderlayers.h"
 #include "factory.h"
 #include "campaigntech.h"
 
@@ -198,19 +199,39 @@ SidebarClass::SidebarClass(NoInitClass const& x)
 **	Cameos keep their native 64x48 size so artwork and text stay sharp. The number of visible rows
 **	is fitted to the canvas height.
 */
-enum Ra4xSidebarEnums
+static int Ra4x_Cameo_W(void)
 {
-    RA4X_SIDE_WIDTH = 144, // Sidebar width in 320-scale units (power bar + two 2-column strips).
-    RA4X_CELL_W = 33,      // Horizontal step between the two cameo columns of a strip.
-    RA4X_STRIP_STEP = 68,  // Horizontal step from the building strip to the unit strip.
-    RA4X_GRID_W = 65,      // Width of one 2-column strip.
-};
+    /*
+    **	Cameos are drawn on the canvas at the size that maps to their native 64x48 pixels on a 1280-wide
+    **	presentation; the SDL presenter then overlays the native art (RenderLayers details).
+    */
+    return Bound((64 * SeenBuff.Get_Width() / 1280) & ~1, 32, 64);
+}
+
+static int Ra4x_Cameo_H(void)
+{
+    return Ra4x_Cameo_W() * 3 / 4;
+}
+
+static int Ra4x_Grid_W(void)
+{
+    return Ra4x_Cameo_W() * 2 + 1;
+}
+
+static int Ra4x_Strip_Step(void)
+{
+    return Ra4x_Grid_W() + 3;
+}
+
+int Ra4x_Side_Width(void)
+{
+    return (16 + 2 + Ra4x_Strip_Step() + Ra4x_Grid_W() + 3) & ~1;
+}
 
 static int Ra4x_Rows(void)
 {
     int top = SidebarClass::COLUMN_ONE_Y * RESFACTOR;
-    int rows = (SeenBuff.Get_Height() - top - (SidebarClass::StripClass::SBUTTON_HEIGHT + 2) * RESFACTOR)
-               / (SidebarClass::StripClass::OBJECT_HEIGHT * RESFACTOR);
+    int rows = (SeenBuff.Get_Height() - top - (SidebarClass::StripClass::SBUTTON_HEIGHT * RESFACTOR + 2)) / Ra4x_Cameo_H();
     return Bound(rows, 1, (int)SidebarClass::StripClass::MAX_VISIBLE / 2);
 }
 
@@ -221,27 +242,27 @@ static int Ra4x_Visible(void)
 
 static int Ra4x_Slot_X(int strip_x, int slot)
 {
-    return strip_x + (slot % 2) * RA4X_CELL_W * RESFACTOR;
+    return strip_x + (slot % 2) * (Ra4x_Cameo_W() + 1);
 }
 
 static int Ra4x_Slot_Y(int strip_y, int slot)
 {
-    return strip_y + (slot / 2) * SidebarClass::StripClass::OBJECT_HEIGHT * RESFACTOR;
+    return strip_y + (slot / 2) * Ra4x_Cameo_H();
 }
 
 void SidebarClass::Ra4x_Layout(void)
 {
-    int left = SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR;
+    int left = SeenBuff.Get_Width() - Ra4x_Side_Width();
     int top = COLUMN_ONE_Y * RESFACTOR;
 
     Background.X = left;
     Background.Y = 8 * RESFACTOR;
-    Background.Width = RA4X_SIDE_WIDTH * RESFACTOR - 1;
+    Background.Width = Ra4x_Side_Width() - 1;
     Background.Height = SeenBuff.Get_Height() - Background.Y;
 
-    Column[0].X = COLUMN_ONE_X * RESFACTOR + Power_Shift_X();
+    Column[0].X = left + 18;
     Column[0].Y = top;
-    Column[1].X = Column[0].X + RA4X_STRIP_STEP * RESFACTOR;
+    Column[1].X = Column[0].X + Ra4x_Strip_Step();
     Column[1].Y = top;
     if (Column[0].TopIndex & 1) {
         Column[0].TopIndex--;
@@ -252,8 +273,9 @@ void SidebarClass::Ra4x_Layout(void)
 
     WindowList[WINDOW_SIDEBAR][WINDOWX] = Column[0].X;
     WindowList[WINDOW_SIDEBAR][WINDOWY] = top;
-    WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = (RA4X_STRIP_STEP + RA4X_GRID_W) * RESFACTOR;
-    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = Ra4x_Rows() * StripClass::OBJECT_HEIGHT * RESFACTOR;
+    WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = Ra4x_Strip_Step() + Ra4x_Grid_W();
+    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = Ra4x_Rows() * Ra4x_Cameo_H();
+    RenderLayers::Clear_Details();
 }
 
 /***********************************************************************************************
@@ -820,36 +842,26 @@ bool SidebarClass::Scroll(bool up, int column)
  *=============================================================================================*/
 void SidebarClass::Draw_It(bool complete)
 {
-    PowerClass::Draw_It(complete);
+    /*
+    **	Custom build: the wide sidebar is a plain dark panel drawn first; the radar, power bar, radar
+    **	housing art (with the repair/sell/map buttons) and the production grids are drawn on top of it.
+    */
+    bool panel = IsSidebarActive && (IsToRedraw || complete) && !Debug_Map;
+    if (panel && LogicPage->Lock()) {
+        int left = SeenBuff.Get_Width() - Ra4x_Side_Width();
+        LogicPage->Fill_Rect(left, 8 * RESFACTOR, SeenBuff.Get_Width() - 1, SeenBuff.Get_Height() - 1, BLACK);
+        Draw_Box(left, 8 * RESFACTOR, Ra4x_Side_Width(), SeenBuff.Get_Height() - 8 * RESFACTOR, BOXSTYLE_RAISED, false);
+        LogicPage->Unlock();
+    }
+
+    PowerClass::Draw_It(complete || panel);
 
     BStart(BENCH_SIDEBAR);
 
-    if (IsSidebarActive && (IsToRedraw || complete) && !Debug_Map) {
+    if (panel) {
         IsToRedraw = false;
-
         if (LogicPage->Lock()) {
-            /*
-            **	Draw the outline box around the sidebar buttons.
-            */
-            int shape = complete ? 0 : 1;
-
-            /*
-            ** The sidebar shape is too big in 640x400 so it needs to be drawn in three chunks.
-            */
-            /*
-            **	Custom build: the wide sidebar is a plain raised panel; only the radar housing art
-            **	(with the repair/sell/map buttons) is drawn at the right edge.
-            */
-            (void)shape;
-            int left = SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR;
-            Draw_Box(left,
-                     8 * RESFACTOR,
-                     RA4X_SIDE_WIDTH * RESFACTOR,
-                     SeenBuff.Get_Height() - 8 * RESFACTOR,
-                     BOXSTYLE_RAISED,
-                     true);
             CC_Draw_Shape(SidebarShape, 0, SIDE_X * RESFACTOR + Hud_Shift_X(), 8 * RESFACTOR, WINDOW_MAIN, SHAPE_WIN_REL);
-
             Repair.Draw_Me(true);
             Upgrade.Draw_Me(true);
             Zoom.Draw_Me(true);
@@ -861,10 +873,10 @@ void SidebarClass::Draw_It(bool complete)
     **	Draw the side strip elements by calling their respective draw functions.
     */
     if (IsSidebarActive) {
-        Column[0].Draw_It(complete);
-        Column[1].Draw_It(complete);
+        Column[0].Draw_It(complete || panel);
+        Column[1].Draw_It(complete || panel);
 
-        if (complete || IsToRedraw) {
+        if (complete || panel) {
             Repair.Draw_Me(true);
             Upgrade.Draw_Me(true);
             Zoom.Draw_Me(true);
@@ -1070,7 +1082,7 @@ bool SidebarClass::Activate(int control)
         **	activate it on the left side of the screen.
         */
         if (IsSidebarActive /*&& X*/) {
-            Set_View_Dimensions(0, 8 * RESFACTOR, (SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR) / ICON_PIXEL_W);
+            Set_View_Dimensions(0, 8 * RESFACTOR, (SeenBuff.Get_Width() - Ra4x_Side_Width()) / ICON_PIXEL_W);
             IsToRedraw = true;
             Help_Text(TXT_NONE);
             Repair.Zap();
@@ -1254,8 +1266,8 @@ void SidebarClass::StripClass::Init_IO(int id)
 
     UpButton[ID].IsSticky = true;
     UpButton[ID].ID = BUTTON_UP + id;
-    UpButton[ID].X = X + (16 * RESFACTOR); // Custom build: centred under the 2-column grid.
-    UpButton[ID].Y = Y + (Ra4x_Rows() * OBJECT_HEIGHT + 1) * RESFACTOR;
+    UpButton[ID].X = X + Ra4x_Grid_W() / 2 - (SBUTTON_WIDTH * RESFACTOR) - 1; // Custom build: under the grid.
+    UpButton[ID].Y = Y + Ra4x_Rows() * Ra4x_Cameo_H() + 2;
 
 #if (FRENCH)
     UpButton[ID].Set_Shape(MFCD::Retrieve("STRIPUP.SHP"));
@@ -1265,8 +1277,8 @@ void SidebarClass::StripClass::Init_IO(int id)
 
     DownButton[ID].IsSticky = true;
     DownButton[ID].ID = BUTTON_DOWN + id;
-    DownButton[ID].X = X + (33 * RESFACTOR);
-    DownButton[ID].Y = Y + (Ra4x_Rows() * OBJECT_HEIGHT + 1) * RESFACTOR;
+    DownButton[ID].X = X + Ra4x_Grid_W() / 2 + 1;
+    DownButton[ID].Y = Y + Ra4x_Rows() * Ra4x_Cameo_H() + 2;
 
     /*
     ** Buttons are in a slightly different position in the new sidebar
@@ -1281,8 +1293,8 @@ void SidebarClass::StripClass::Init_IO(int id)
         g.ID = BUTTON_SELECT;
         g.X = Ra4x_Slot_X(X, index);
         g.Y = Ra4x_Slot_Y(Y, index);
-        g.Width = OBJECT_WIDTH * RESFACTOR;
-        g.Height = OBJECT_HEIGHT * RESFACTOR;
+        g.Width = Ra4x_Cameo_W();
+        g.Height = Ra4x_Cameo_H();
         g.Set_Owner(*this, index);
     }
 }
@@ -1728,11 +1740,7 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         /*
         **	Custom build: clear the whole 2-column grid; empty slots stay black.
         */
-        LogicPage->Fill_Rect(X,
-                             Y,
-                             X + RA4X_GRID_W * RESFACTOR - 1,
-                             Y + Ra4x_Rows() * OBJECT_HEIGHT * RESFACTOR - 1,
-                             BLACK);
+        LogicPage->Fill_Rect(X, Y, X + Ra4x_Grid_W() - 1, Y + Ra4x_Rows() * Ra4x_Cameo_H() - 1, BLACK);
 
         /*
         **	Redraw the scroll buttons.
@@ -1853,6 +1861,27 @@ void SidebarClass::StripClass::Draw_It(bool complete)
             remapper = 0;
 
             /*
+            **	Custom build: compose the cameo and its overlays (clock, READY/ON HOLD) at their native
+            **	64x48 size, then reduce them together into the grid slot. The SDL presenter overlays the
+            **	native pixels at screen resolution, so artwork and text stay sharp.
+            */
+            static GraphicBufferClass ra4x_cameo(OBJECT_WIDTH * 2, OBJECT_HEIGHT * 2);
+            const int ra4x_sw = OBJECT_WIDTH * RESFACTOR, ra4x_sh = OBJECT_HEIGHT * RESFACTOR;
+            const int ra4x_x = x, ra4x_y = y;
+            GraphicViewPortClass* ra4x_dest = Set_Logic_Page(ra4x_cameo);
+            int ra4x_window[9];
+            for (int w = 0; w < 9; ++w) {
+                ra4x_window[w] = WindowList[WINDOW_SIDEBAR][w];
+            }
+            WindowList[WINDOW_SIDEBAR][WINDOWX] = 0;
+            WindowList[WINDOW_SIDEBAR][WINDOWY] = 0;
+            WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = ra4x_sw;
+            WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = ra4x_sh;
+            ra4x_cameo.Fill_Rect(0, 0, ra4x_sw - 1, ra4x_sh - 1, BLACK);
+            x = -(LEFT_EDGE_OFFSET * RESFACTOR);
+            y = 0;
+
+            /*
             **	Now that the shape of the object at the current working slot has been found,
             **	draw it and any graphic overlays as necessary.
             **
@@ -1922,6 +1951,16 @@ void SidebarClass::StripClass::Draw_It(bool complete)
                                       SHAPE_CENTER);
                     }
                 }
+            }
+
+            Set_Logic_Page(ra4x_dest);
+            for (int w = 0; w < 9; ++w) {
+                WindowList[WINDOW_SIDEBAR][w] = ra4x_window[w];
+            }
+            ra4x_cameo.Scale(*ra4x_dest, 0, 0, ra4x_x, ra4x_y, ra4x_sw, ra4x_sh, Ra4x_Cameo_W(), Ra4x_Cameo_H());
+            if (index < BuildableCount) {
+                RenderLayers::Add_Detail(
+                    ra4x_cameo, ra4x_sw, ra4x_sh, *ra4x_dest, ra4x_x, ra4x_y, Ra4x_Cameo_W(), Ra4x_Cameo_H());
             }
         }
 

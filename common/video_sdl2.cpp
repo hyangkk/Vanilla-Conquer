@@ -947,10 +947,88 @@ public:
         SDL_UpdateTexture(texture, NULL, windowSurface->pixels, windowSurface->pitch);
         SDL_RenderClear(renderer);
         if (!smooth_compositor.Render()) SDL_RenderCopy(renderer, texture, NULL, &render_dst);
+        if (RenderDetails()) {
+            RenderCursor();
+        }
         SDL_RenderPresent(renderer);
     }
 
 private:
+    /*
+    **	Custom build: native-resolution UI art (sidebar cameos) drawn over its reduced copy on the
+    **	canvas, but only while the canvas still shows exactly that copy (menus/tooltips win).
+    */
+    bool RenderDetails()
+    {
+        const auto& details = RenderLayers::frame.details;
+        if (details.empty() || !surface || surface->format->BytesPerPixel != 1)
+            return false;
+        int cellWidth = 0, cellHeight = 0;
+        for (const auto& detail : details) {
+            cellWidth = std::max(cellWidth, detail.source_width);
+            cellHeight = std::max(cellHeight, detail.source_height);
+        }
+        const int atlasHeight = cellHeight * int(details.size());
+        if (!detailTexture || detailWidth != cellWidth || detailHeight != atlasHeight) {
+            if (detailTexture)
+                SDL_DestroyTexture(detailTexture);
+            detailWidth = cellWidth;
+            detailHeight = atlasHeight;
+            detailTexture =
+                SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, cellWidth, atlasHeight);
+            if (!detailTexture)
+                return false;
+            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeNearest);
+        }
+        SDL_Color* colors = palette ? palette->colors : nullptr;
+        if (!colors)
+            return false;
+        detailPixels.assign(size_t(cellWidth) * atlasHeight, 0);
+        for (size_t i = 0; i < details.size(); ++i) {
+            const auto& detail = details[i];
+            for (int y = 0; y < detail.source_height; ++y)
+                for (int x = 0; x < detail.source_width; ++x) {
+                    const SDL_Color color = colors[detail.pixels[y * detail.source_width + x]];
+                    unsigned char rgba[4] = {color.r, color.g, color.b, 255};
+                    std::memcpy(&detailPixels[(i * cellHeight + y) * cellWidth + x], rgba, 4);
+                }
+        }
+        if (SDL_UpdateTexture(detailTexture, nullptr, detailPixels.data(), cellWidth * 4) != 0)
+            return false;
+        const float sx = float(render_dst.w) / surface->w, sy = float(render_dst.h) / surface->h;
+        bool drawn = false;
+        for (size_t i = 0; i < details.size(); ++i) {
+            const auto& detail = details[i];
+            if (!RenderLayers::Detail_Visible(
+                    detail, static_cast<unsigned char*>(surface->pixels), surface->w, surface->h, surface->pitch))
+                continue;
+            SDL_Rect src = {0, int(i) * cellHeight, detail.source_width, detail.source_height};
+            SDL_FRect dst = {render_dst.x + detail.x * sx, render_dst.y + detail.y * sy, detail.width * sx, detail.height * sy};
+            SDL_RenderCopyF(renderer, detailTexture, &src, &dst);
+            drawn = true;
+        }
+        return drawn;
+    }
+    void RenderCursor()
+    {
+        const float sx = float(render_dst.w) / surface->w, sy = float(render_dst.h) / surface->h;
+        if (!Settings.Video.HardwareCursor && !Get_Mouse_State() && hwcursor.Surface) {
+            SDL_Texture* cursor = SDL_CreateTextureFromSurface(renderer, hwcursor.Surface);
+            if (cursor) {
+                int x, y;
+                Get_Video_Mouse(x, y);
+                SDL_FRect dst = {render_dst.x + (x - hwcursor.HotX) * sx,
+                                 render_dst.y + (y - hwcursor.HotY) * sy,
+                                 hwcursor.Surface->w * sx,
+                                 hwcursor.Surface->h * sy};
+                SDL_RenderCopyF(renderer, cursor, nullptr, &dst);
+                SDL_DestroyTexture(cursor);
+            }
+        }
+    }
+    SDL_Texture* detailTexture = nullptr;
+    int detailWidth = 0, detailHeight = 0;
+    std::vector<uint32_t> detailPixels;
     SDL_Surface* surface;
     SDL_Surface* windowSurface;
     SDL_Texture* texture;
