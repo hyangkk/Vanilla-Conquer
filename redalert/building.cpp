@@ -110,6 +110,10 @@
 #include "event.h"
 #include "rules.h"
 
+// Custom build (house.cpp): smart campaign AI for the player's computer enemies.
+bool Ra4x_Smart_AI(const HouseClass* house);
+int Ra4x_AI_IQ(const HouseClass* house);
+
 /*
 ** New sidebar for GlyphX multiplayer. ST - 8/2/2019 2:35PM
 */
@@ -2136,7 +2140,7 @@ int BuildingClass::Exit_Object(TechnoClass* base)
                     **	center of the base.
                     */
                     base->Assign_Destination(::As_Target(cell));
-                    if (House->IQ >= Rule.IQGuardArea) {
+                    if (Ra4x_AI_IQ(House) >= Rule.IQGuardArea) {
                         base->Assign_Mission(MISSION_GUARD_AREA);
                         base->ArchiveTarget = ::As_Target(House->Where_To_Go((FootClass*)base));
                     }
@@ -2171,7 +2175,7 @@ int BuildingClass::Exit_Object(TechnoClass* base)
                     **	center of the base.
                     */
                     base->Assign_Destination(::As_Target(cell));
-                    if (House->IQ >= Rule.IQGuardArea) {
+                    if (Ra4x_AI_IQ(House) >= Rule.IQGuardArea) {
                         base->Assign_Mission(MISSION_GUARD_AREA);
                         base->ArchiveTarget = ::As_Target(House->Where_To_Go((FootClass*)base));
                     }
@@ -2585,9 +2589,7 @@ TARGET BuildingClass::Greatest_Threat(ThreatType threat) const
     if (Class->SecondaryWeapon != NULL) {
         threat = threat | Class->SecondaryWeapon->Allowed_Threats();
     }
-    if (House->IsHuman) {
-        threat = threat & ~THREAT_BUILDINGS;
-    }
+    // Custom build: human defenses also auto-attack enemy structures, as computer defenses do.
     threat = threat | THREAT_RANGE;
 
     //	if (Class->PrimaryWeapon != NULL) {
@@ -4951,7 +4953,7 @@ int BuildingClass::Mission_Unload(void)
                 if (unit) {
                     unit->Assign_Mission(MISSION_MOVE);
 
-                    if (House->IQ >= Rule.IQGuardArea) {
+                    if (Ra4x_AI_IQ(House) >= Rule.IQGuardArea) {
                         unit->Assign_Mission(MISSION_GUARD_AREA);
                         unit->ArchiveTarget = ::As_Target(House->Where_To_Go(unit));
                     }
@@ -5828,7 +5830,7 @@ void BuildingClass::Charging_AI(void)
  *=============================================================================================*/
 void BuildingClass::Repair_AI(void)
 {
-    if (House->IQ >= Rule.IQRepairSell && Mission != MISSION_CONSTRUCTION && Mission != MISSION_DECONSTRUCTION) {
+    if (Ra4x_AI_IQ(House) >= Rule.IQRepairSell && Mission != MISSION_CONSTRUCTION && Mission != MISSION_DECONSTRUCTION) {
         /*
         **	Possibly start repair process if the building is below half strength.
         */
@@ -5836,7 +5838,11 @@ void BuildingClass::Repair_AI(void)
         if (Can_Repair()) {
             if (House->Available_Money() >= Rule.RepairThreshhold) {
                 if (!House->DidRepair) {
-                    if (!IsRepairing && (IsCaptured || IsToRepair || House->IsHuman || Session.Type != GAME_NORMAL)) {
+                    // Custom build: the smart campaign AI repairs all of its damaged buildings once it
+                    // has an income (a refinery), so repairs never eat the money for its first refinery.
+                    if (!IsRepairing
+                        && (IsCaptured || IsToRepair || House->IsHuman || Session.Type != GAME_NORMAL
+                            || (Ra4x_Smart_AI(House) && House->Get_Quantity(STRUCT_REFINERY) > 0))) {
                         House->DidRepair = true; // flag that this house did its repair allocation for this frame
                         Repair(1);
 

@@ -131,6 +131,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "utracker.h"
 
 /***************************************************************************
@@ -1510,6 +1511,71 @@ fixed TechnoClass::Area_Modify(CELL cell) const
     return (odds);
 }
 
+/*
+**	Custom build (Red Alert): auto-targeting priority for human-owned objects.
+**	3 = an enemy that is attacking something of ours, 2 = any other enemy unit or armed structure,
+**	1 = unarmed enemy structure or hostile wall (last resort), 0 = no target.
+*/
+static bool Ra4x_Is_Attacking_Owner(TechnoClass const* object, HousesType owner)
+{
+    if (object == NULL || !Target_Legal(object->TarCom) || Is_Target_Cell(object->TarCom)) {
+        return (false);
+    }
+    TechnoClass const* victim = As_Techno(object->TarCom);
+    return (victim != NULL && victim->Owner() == owner);
+}
+
+int Ra4x_Target_Rank(TechnoClass const* self, TARGET target)
+{
+    if (!Target_Legal(target)) {
+        return (0);
+    }
+    if (Is_Target_Cell(target)) {
+        return (1);
+    }
+    TechnoClass const* object = As_Techno(target);
+    if (object == NULL) {
+        return (1);
+    }
+    if (self->House->Is_Ally(object)) {
+        return (0);
+    }
+    if (Ra4x_Is_Attacking_Owner(object, self->Owner())) {
+        return (3);
+    }
+    if (object->What_Am_I() == RTTI_BUILDING && object->Techno_Type_Class()->PrimaryWeapon == NULL) {
+        return (1);
+    }
+    return (2);
+}
+
+/*
+**	Walls a house built carry its ownership. Scenario walls carry none, so they count as hostile
+**	when the nearest structure within five cells belongs to a hostile, non-civilian house.
+*/
+static bool Ra4x_Wall_Is_Hostile(TechnoClass const* self, CELL cell)
+{
+    CellClass const& c = Map[cell];
+    if (c.Owner != HOUSE_NONE) {
+        return (c.Owner != HOUSE_NEUTRAL && !self->House->Is_Ally(c.Owner));
+    }
+    BuildingClass const* nearest = NULL;
+    int best = 5 * CELL_LEPTON_W + 1;
+    COORDINATE where = Cell_Coord(cell);
+    for (int i = 0; i < Buildings.Count(); i++) {
+        BuildingClass const* b = Buildings.Ptr(i);
+        if (b == NULL || b->IsInLimbo) {
+            continue;
+        }
+        int d = ::Distance(where, b->Center_Coord());
+        if (d < best) {
+            best = d;
+            nearest = b;
+        }
+    }
+    return (nearest != NULL && nearest->Owner() != HOUSE_NEUTRAL && !self->House->Is_Ally(nearest));
+}
+
 /***********************************************************************************************
  * TechnoClass::Evaluate_Object -- Determines score value of specified object.                 *
  *                                                                                             *
@@ -1716,7 +1782,8 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
     */
     if ((!Is_Foot() || !((FootClass*)this)->Team.Is_Valid())
         && (House->IsHuman || (House->IsPlayerControl && Session.Type == GAME_NORMAL)) && otype == RTTI_BUILDING
-        && tclass->PrimaryWeapon == NULL) {
+        && tclass->PrimaryWeapon == NULL
+        && !(House->IsHuman && object->Owner() != HOUSE_NEUTRAL)) { // Custom build: humans hit hostile unarmed structures
 #ifdef OBSOLETE
         if ((!Is_Foot() || ((FootClass*)this)->Team.Is_Valid()) && House->IsHuman && otype == RTTI_BUILDING
             && tclass->PrimaryWeapon == NULL) {
@@ -1876,9 +1943,21 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
             //		if (value < MAP_CELL_W*2) value = dist/ICON_LEPTON_W;
             value = max(value, 1);
             BEnd(BENCH_EVAL_OBJECT);
+            if (House->IsHuman) {
+                value = Ra4x_Target_Rank(this, object->As_Target()) * 100000000 + min(value, 99999999);
+            }
             return (true);
         }
         value = 0;
+        if (House->IsHuman && object->Owner() != HOUSE_NEUTRAL) {
+            /*
+            **	Custom build: zero-value enemies (e.g. unarmed structures) are still valid,
+            **	lowest-priority targets for human players.
+            */
+            value = Ra4x_Target_Rank(this, object->As_Target()) * 100000000 + 1;
+            BEnd(BENCH_EVAL_OBJECT);
+            return (true);
+        }
         BEnd(BENCH_EVAL_OBJECT);
         return (false);
     }
@@ -2000,23 +2079,20 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         /*
         **	Ships don't scan for walls.
         */
-        if (What_Am_I() == RTTI_VESSEL) {
+        if (What_Am_I() == RTTI_VESSEL && !House->IsHuman) {
             return (0);
         }
 
         /*
         **	First, only computer objects are allowed to automatically scan for walls.
+        **	Custom build: human objects scan for hostile walls too.
         */
-        if (House->IsHuman) {
-            BEnd(BENCH_EVAL_WALL);
-            return (0);
-        }
 
         /*
         **	Even then, if the difficulty indicates that it shouldn't search for wall
         **	targets, then don't allow it to do so.
         */
-        if (!Rule.Diff[House->Difficulty].IsWallDestroyer) {
+        if (!House->IsHuman && !Rule.Diff[House->Difficulty].IsWallDestroyer) {
             BEnd(BENCH_EVAL_WALL);
             return (0);
         }
@@ -2062,7 +2138,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         **	If the primary weapon cannot destroy a wall, then don't give the cell any
         **	value as a target.
         */
-        if (!ttype->PrimaryWeapon->WarheadPtr->IsWallDestroyer) {
+        if (!ttype->PrimaryWeapon->WarheadPtr->IsWallDestroyer
+            && !(House->IsHuman && ttype->PrimaryWeapon->WarheadPtr->IsWoodDestroyer
+                 && OverlayTypeClass::As_Reference(cellptr->Overlay).IsWooden)) {
             BEnd(BENCH_EVAL_WALL);
             return (0);
         }
@@ -2071,6 +2149,14 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         **	If this is a friendly wall, then don't attack it.
         */
         if (House->Is_Ally(cellptr->Owner)) {
+            BEnd(BENCH_EVAL_WALL);
+            return (0);
+        }
+
+        /*
+        **	Custom build: human objects only shoot walls they can see that belong to an enemy.
+        */
+        if (House->IsHuman && (!cellptr->Is_Mapped(House) || !Ra4x_Wall_Is_Hostile(this, cell))) {
             BEnd(BENCH_EVAL_WALL);
             return (0);
         }
@@ -2271,6 +2357,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                         if (Evaluate_Cell(method, mask, newcell, range, &object, value, zone)) {
                             if (bestval < value) {
                                 bestobject = object;
+                                if (House->IsHuman) {
+                                    bestval = value; // Custom build: keep the best target, not the last.
+                                }
                             }
                         }
                         if (bestobject == NULL) {
@@ -2287,6 +2376,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                         if (Evaluate_Cell(method, mask, newcell, range, &object, value, zone)) {
                             if (bestval < value) {
                                 bestobject = object;
+                                if (House->IsHuman) {
+                                    bestval = value; // Custom build: keep the best target, not the last.
+                                }
                             }
                         }
                         if (bestobject == NULL) {
@@ -2315,6 +2407,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                         if (Evaluate_Cell(method, mask, newcell, range, &object, value, zone)) {
                             if (bestval < value) {
                                 bestobject = object;
+                                if (House->IsHuman) {
+                                    bestval = value; // Custom build: keep the best target, not the last.
+                                }
                             }
                         }
                         if (bestobject == NULL) {
@@ -2331,6 +2426,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                         if (Evaluate_Cell(method, mask, newcell, range, &object, value, zone)) {
                             if (bestval < value) {
                                 bestobject = object;
+                                if (House->IsHuman) {
+                                    bestval = value; // Custom build: keep the best target, not the last.
+                                }
                             }
                         }
                         if (bestobject == NULL) {
@@ -2347,6 +2445,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                 **	Bail early if a target has already been found and the range is at
                 **	one of the breaking points (i.e., normal range or range * 2).
                 */
+                if (House->IsHuman) {
+                    continue; // Custom build: humans scan the whole area for the highest priority target.
+                }
                 if (bestobject != NULL) {
                     if (radius == crange / 4) {
                         return (bestobject->As_Target());
@@ -2358,6 +2459,14 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                 if (bestcell != -1) {
                     return (::As_Target(bestcell));
                 }
+            }
+
+            /*
+            **	Custom build: walls are a human object's last-resort target.
+            */
+            if (House->IsHuman && bestobject == NULL && bestcell != -1) {
+                BEnd(BENCH_GREATEST_THREAT);
+                return (::As_Target(bestcell));
             }
 
         } else {
@@ -2544,6 +2653,33 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                 int step = max(1, maximum / 50);
                 Strength = min(maximum, (int)Strength + step);
                 Mark(MARK_CHANGE);
+            }
+        }
+
+        /*
+        **	Custom build: human objects re-check their automatic target every game second. An
+        **	automatically chosen wall cell is dropped once the wall is gone, and a lower priority
+        **	target is swapped for an enemy that is attacking us (or, from a last-resort target such
+        **	as an unarmed structure or wall, for any armed enemy). Explicit orders are untouched.
+        */
+        if (House && House->IsHuman && !IsInLimbo && Strength > 0 && Is_Weapon_Equipped()
+            && ((Frame + ID) % TICKS_PER_SECOND) == 0) {
+            bool automatic = Mission == MISSION_GUARD || Mission == MISSION_GUARD_AREA
+                             || (What_Am_I() == RTTI_BUILDING && Mission == MISSION_ATTACK);
+            if (automatic && Target_Legal(TarCom)) {
+                if (Is_Target_Cell(TarCom)) {
+                    CellClass const& tc = Map[As_Cell(TarCom)];
+                    if (tc.Overlay == OVERLAY_NONE || !OverlayTypeClass::As_Reference(tc.Overlay).IsWall) {
+                        Assign_Target(TARGET_NONE);
+                    }
+                }
+                int rank = Ra4x_Target_Rank(this, TarCom);
+                if (Target_Legal(TarCom) && rank < 3) {
+                    TARGET better = Greatest_Threat(THREAT_RANGE);
+                    if (Ra4x_Target_Rank(this, better) > rank) {
+                        Assign_Target(better);
+                    }
+                }
             }
         }
 
@@ -5660,6 +5796,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         **	If a human house is not allowed to retaliate automatically, then don't
         */
         if (House->IsHuman && !Rule.IsSmartDefense
+            && Mission != MISSION_GUARD && Mission != MISSION_GUARD_AREA // Custom build: idle human units fight back
             && (What_Am_I() != RTTI_INFANTRY || *((InfantryClass*)this) != INFANTRY_TANYA
                 || source->What_Am_I() != RTTI_INFANTRY))
             return (false);

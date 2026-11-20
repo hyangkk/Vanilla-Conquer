@@ -193,6 +193,69 @@ SidebarClass::SidebarClass(NoInitClass const& x)
     //	Column[1].Y = COLUMN_TWO_Y * RESFACTOR;
 }
 
+/*
+**	Custom build (Red Alert): wide sidebar with two 2-column production grids (buildings | units).
+**	Cameos keep their native 64x48 size so artwork and text stay sharp. The number of visible rows
+**	is fitted to the canvas height.
+*/
+enum Ra4xSidebarEnums
+{
+    RA4X_SIDE_WIDTH = 144, // Sidebar width in 320-scale units (power bar + two 2-column strips).
+    RA4X_CELL_W = 33,      // Horizontal step between the two cameo columns of a strip.
+    RA4X_STRIP_STEP = 68,  // Horizontal step from the building strip to the unit strip.
+    RA4X_GRID_W = 65,      // Width of one 2-column strip.
+};
+
+static int Ra4x_Rows(void)
+{
+    int top = SidebarClass::COLUMN_ONE_Y * RESFACTOR;
+    int rows = (SeenBuff.Get_Height() - top - (SidebarClass::StripClass::SBUTTON_HEIGHT + 2) * RESFACTOR)
+               / (SidebarClass::StripClass::OBJECT_HEIGHT * RESFACTOR);
+    return Bound(rows, 1, (int)SidebarClass::StripClass::MAX_VISIBLE / 2);
+}
+
+static int Ra4x_Visible(void)
+{
+    return Ra4x_Rows() * 2;
+}
+
+static int Ra4x_Slot_X(int strip_x, int slot)
+{
+    return strip_x + (slot % 2) * RA4X_CELL_W * RESFACTOR;
+}
+
+static int Ra4x_Slot_Y(int strip_y, int slot)
+{
+    return strip_y + (slot / 2) * SidebarClass::StripClass::OBJECT_HEIGHT * RESFACTOR;
+}
+
+void SidebarClass::Ra4x_Layout(void)
+{
+    int left = SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR;
+    int top = COLUMN_ONE_Y * RESFACTOR;
+
+    Background.X = left;
+    Background.Y = 8 * RESFACTOR;
+    Background.Width = RA4X_SIDE_WIDTH * RESFACTOR - 1;
+    Background.Height = SeenBuff.Get_Height() - Background.Y;
+
+    Column[0].X = COLUMN_ONE_X * RESFACTOR + Power_Shift_X();
+    Column[0].Y = top;
+    Column[1].X = Column[0].X + RA4X_STRIP_STEP * RESFACTOR;
+    Column[1].Y = top;
+    if (Column[0].TopIndex & 1) {
+        Column[0].TopIndex--;
+    }
+    if (Column[1].TopIndex & 1) {
+        Column[1].TopIndex--;
+    }
+
+    WindowList[WINDOW_SIDEBAR][WINDOWX] = Column[0].X;
+    WindowList[WINDOW_SIDEBAR][WINDOWY] = top;
+    WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = (RA4X_STRIP_STEP + RA4X_GRID_W) * RESFACTOR;
+    WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = Ra4x_Rows() * StripClass::OBJECT_HEIGHT * RESFACTOR;
+}
+
 /***********************************************************************************************
  * SidebarClass::One_Time -- Handles the one time game initializations.                        *
  *                                                                                             *
@@ -211,7 +274,7 @@ SidebarClass::SidebarClass(NoInitClass const& x)
 void SidebarClass::One_Time(void)
 {
     /* Set RESFACTOR positions.  */
-    SidebarClass::Background.X = (int)((int)SIDE_X + 8) * RESFACTOR;
+    SidebarClass::Background.X = (int)((int)SIDE_X + 8) * RESFACTOR + Hud_Shift_X();
     SidebarClass::Background.Y = (int)SIDE_Y * RESFACTOR;
     SidebarClass::Background.Width = (int)((int)SIDE_WIDTH - 1) * RESFACTOR - 1;
     SidebarClass::Background.Height = (int)((int)SIDE_HEIGHT - 1) * RESFACTOR;
@@ -223,7 +286,7 @@ void SidebarClass::One_Time(void)
     **	code so that as the sidebar buildable buttons scroll, they get properly
     **	clipped at the top and bottom edges.
     */
-    WindowList[WINDOW_SIDEBAR][WINDOWX] = ((SIDE_X + 8)) * RESFACTOR;
+    WindowList[WINDOW_SIDEBAR][WINDOWX] = ((SIDE_X + 8)) * RESFACTOR + Hud_Shift_X();
     WindowList[WINDOW_SIDEBAR][WINDOWY] = (SIDE_Y + 1 + TOP_HEIGHT) * RESFACTOR;
     WindowList[WINDOW_SIDEBAR][WINDOWWIDTH] = (SIDE_WIDTH)*RESFACTOR;
     WindowList[WINDOW_SIDEBAR][WINDOWHEIGHT] = (StripClass::MAX_VISIBLE * StripClass::OBJECT_HEIGHT) * RESFACTOR;
@@ -238,10 +301,11 @@ void SidebarClass::One_Time(void)
     **	Set up the coordinates for the sidebar strips. These coordinates are for
     **	the upper left corner.
     */
-    Column[0].X = COLUMN_ONE_X * RESFACTOR;
+    Column[0].X = COLUMN_ONE_X * RESFACTOR + Hud_Shift_X();
     Column[0].Y = COLUMN_ONE_Y * RESFACTOR;
-    Column[1].X = COLUMN_TWO_X * RESFACTOR;
+    Column[1].X = COLUMN_TWO_X * RESFACTOR + Hud_Shift_X();
     Column[1].Y = COLUMN_TWO_Y * RESFACTOR;
+    Ra4x_Layout(); // Custom build: wide 2x2-column sidebar.
     Column[0].One_Time(0);
     Column[1].One_Time(1);
 
@@ -294,6 +358,14 @@ void SidebarClass::Init_Clear(void)
  *=============================================================================================*/
 void SidebarClass::Init_IO(void)
 {
+    /*
+    **	Custom build: saved games carry the radar and production strip positions of the canvas they
+    **	were made on. Recompute them for the current canvas so saves load at any game resolution.
+    */
+    RadX = SeenBuff.Get_Width() - RadWidth;
+    RadarButton.X = RadX;
+    Ra4x_Layout();
+
     PowerClass::Init_IO();
 
     /*
@@ -303,7 +375,7 @@ void SidebarClass::Init_IO(void)
 
         Repair.IsSticky = true;
         Repair.ID = BUTTON_REPAIR;
-        Repair.X = (0x1f2 / 2) * RESFACTOR;
+        Repair.X = (0x1f2 / 2) * RESFACTOR + Hud_Shift_X();
         Repair.Y = (0x96 / 2) * RESFACTOR;
         Repair.IsPressed = false;
         Repair.IsToggleType = true;
@@ -312,7 +384,7 @@ void SidebarClass::Init_IO(void)
 
         Upgrade.IsSticky = true;
         Upgrade.ID = BUTTON_UPGRADE;
-        Upgrade.X = (RESFACTOR == 1) ? 271 : 0x21f;
+        Upgrade.X = ((RESFACTOR == 1) ? 271 : 0x21f) + Hud_Shift_X();
         Upgrade.Y = (0x96 / 2) * RESFACTOR;
         Upgrade.IsPressed = false;
         Upgrade.IsToggleType = true;
@@ -321,7 +393,7 @@ void SidebarClass::Init_IO(void)
 
         Zoom.IsSticky = true;
         Zoom.ID = BUTTON_ZOOM;
-        Zoom.X = (0x24c / 2) * RESFACTOR;
+        Zoom.X = (0x24c / 2) * RESFACTOR + Hud_Shift_X();
         Zoom.Y = (0x96 / 2) * RESFACTOR;
         Zoom.IsPressed = false;
         Zoom.Set_Shape(MFCD::Retrieve("MAP.SHP"));
@@ -342,6 +414,11 @@ void SidebarClass::Init_IO(void)
             Activate(1);
             //			Background.Zap();
             //			Add_A_Button(Background);
+        } else {
+            /*
+            **	Custom build: re-fit the tactical view saved with another canvas size.
+            */
+            Set_View_Dimensions(0, 8 * RESFACTOR);
         }
     }
 }
@@ -759,11 +836,19 @@ void SidebarClass::Draw_It(bool complete)
             /*
             ** The sidebar shape is too big in 640x400 so it needs to be drawn in three chunks.
             */
-            CC_Draw_Shape(SidebarShape, 0, SIDE_X * RESFACTOR, 8 * RESFACTOR, WINDOW_MAIN, SHAPE_WIN_REL);
-            CC_Draw_Shape(
-                SidebarMiddleShape, shape, SIDE_X * RESFACTOR, (8 + 80) * RESFACTOR, WINDOW_MAIN, SHAPE_WIN_REL);
-            CC_Draw_Shape(
-                SidebarBottomShape, shape, SIDE_X * RESFACTOR, (8 + 80 + 50) * RESFACTOR, WINDOW_MAIN, SHAPE_WIN_REL);
+            /*
+            **	Custom build: the wide sidebar is a plain raised panel; only the radar housing art
+            **	(with the repair/sell/map buttons) is drawn at the right edge.
+            */
+            (void)shape;
+            int left = SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR;
+            Draw_Box(left,
+                     8 * RESFACTOR,
+                     RA4X_SIDE_WIDTH * RESFACTOR,
+                     SeenBuff.Get_Height() - 8 * RESFACTOR,
+                     BOXSTYLE_RAISED,
+                     true);
+            CC_Draw_Shape(SidebarShape, 0, SIDE_X * RESFACTOR + Hud_Shift_X(), 8 * RESFACTOR, WINDOW_MAIN, SHAPE_WIN_REL);
 
             Repair.Draw_Me(true);
             Upgrade.Draw_Me(true);
@@ -985,7 +1070,7 @@ bool SidebarClass::Activate(int control)
         **	activate it on the left side of the screen.
         */
         if (IsSidebarActive /*&& X*/) {
-            Set_View_Dimensions(0, 8 * RESFACTOR, ((320 - SIDE_WIDTH) / ICON_PIXEL_W) * RESFACTOR);
+            Set_View_Dimensions(0, 8 * RESFACTOR, (SeenBuff.Get_Width() - RA4X_SIDE_WIDTH * RESFACTOR) / ICON_PIXEL_W);
             IsToRedraw = true;
             Help_Text(TXT_NONE);
             Repair.Zap();
@@ -1169,8 +1254,8 @@ void SidebarClass::StripClass::Init_IO(int id)
 
     UpButton[ID].IsSticky = true;
     UpButton[ID].ID = BUTTON_UP + id;
-    UpButton[ID].X = X + (UP_X_OFFSET * RESFACTOR);
-    UpButton[ID].Y = Y + (UP_Y_OFFSET * RESFACTOR);
+    UpButton[ID].X = X + (16 * RESFACTOR); // Custom build: centred under the 2-column grid.
+    UpButton[ID].Y = Y + (Ra4x_Rows() * OBJECT_HEIGHT + 1) * RESFACTOR;
 
 #if (FRENCH)
     UpButton[ID].Set_Shape(MFCD::Retrieve("STRIPUP.SHP"));
@@ -1180,8 +1265,8 @@ void SidebarClass::StripClass::Init_IO(int id)
 
     DownButton[ID].IsSticky = true;
     DownButton[ID].ID = BUTTON_DOWN + id;
-    DownButton[ID].X = X + (DOWN_X_OFFSET * RESFACTOR);
-    DownButton[ID].Y = Y + (DOWN_Y_OFFSET * RESFACTOR);
+    DownButton[ID].X = X + (33 * RESFACTOR);
+    DownButton[ID].Y = Y + (Ra4x_Rows() * OBJECT_HEIGHT + 1) * RESFACTOR;
 
     /*
     ** Buttons are in a slightly different position in the new sidebar
@@ -1194,8 +1279,8 @@ void SidebarClass::StripClass::Init_IO(int id)
     for (int index = 0; index < MAX_VISIBLE; index++) {
         SelectClass& g = SelectButton[ID][index];
         g.ID = BUTTON_SELECT;
-        g.X = X;
-        g.Y = Y + ((OBJECT_HEIGHT * index) * RESFACTOR);
+        g.X = Ra4x_Slot_X(X, index);
+        g.Y = Ra4x_Slot_Y(Y, index);
         g.Width = OBJECT_WIDTH * RESFACTOR;
         g.Height = OBJECT_HEIGHT * RESFACTOR;
         g.Set_Owner(*this, index);
@@ -1298,7 +1383,7 @@ void SidebarClass::StripClass::Activate(void)
     DownButton[ID].Zap();
     Map.Add_A_Button(DownButton[ID]);
 
-    for (int index = 0; index < MAX_VISIBLE; index++) {
+    for (int index = 0; index < Ra4x_Visible(); index++) {
         SelectButton[ID][index].Zap();
         Map.Add_A_Button(SelectButton[ID][index]);
     }
@@ -1387,15 +1472,22 @@ bool SidebarClass::StripClass::Add(RTTIType type, int id, bool via_capture)
  *=============================================================================================*/
 bool SidebarClass::StripClass::Scroll(bool up)
 {
+    /*
+    **	Custom build: the 2-column grid scrolls a whole row (two items) at a time, without sliding.
+    */
     if (up) {
-        if (!TopIndex)
+        if (TopIndex <= 0)
             return (false);
-        Scroller--;
+        TopIndex = max(0, TopIndex - 2);
     } else {
-        if (TopIndex + MAX_VISIBLE >= BuildableCount)
+        if (TopIndex + Ra4x_Visible() >= BuildableCount)
             return (false);
-        Scroller++;
+        TopIndex += 2;
     }
+    Scroller = 0;
+    IsScrolling = false;
+    Slid = 0;
+    Flag_To_Redraw();
     return (true);
 }
 
@@ -1633,9 +1725,14 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         /*
         ** New sidebar needs to be drawn not filled
         */
-        if (BuildableCount < MAX_VISIBLE) {
-            CC_Draw_Shape(LogoShapes, ID, X + (2 * RESFACTOR), Y, WINDOW_MAIN, SHAPE_WIN_REL | SHAPE_NORMAL, 0);
-        }
+        /*
+        **	Custom build: clear the whole 2-column grid; empty slots stay black.
+        */
+        LogicPage->Fill_Rect(X,
+                             Y,
+                             X + RA4X_GRID_W * RESFACTOR - 1,
+                             Y + Ra4x_Rows() * OBJECT_HEIGHT * RESFACTOR - 1,
+                             BLACK);
 
         /*
         **	Redraw the scroll buttons.
@@ -1647,7 +1744,7 @@ void SidebarClass::StripClass::Draw_It(bool complete)
         **	Loop through all the buildable objects that are visible in the strip and render
         **	them. Their Y offset may be adjusted if the strip is in the process of scrolling.
         */
-        for (int i = 0; i < MAX_VISIBLE + (IsScrolling ? 1 : 0); i++) {
+        for (int i = 0; i < Ra4x_Visible(); i++) {
             bool production;
             bool completed;
             int stage;
@@ -1657,16 +1754,8 @@ void SidebarClass::StripClass::Draw_It(bool complete)
             void const* remapper = 0;
             FactoryClass* factory = 0;
             int index = i + TopIndex;
-            int x = X;
-            int y = Y + (i * OBJECT_HEIGHT * RESFACTOR);
-
-            /*
-            **	If the strip is scrolling, then the offset is adjusted accordingly.
-            */
-            if (IsScrolling) {
-                y -= (OBJECT_HEIGHT - Slid) * RESFACTOR;
-                //				y -= OBJECT_HEIGHT - Slid;
-            }
+            int x = Ra4x_Slot_X(X, i);
+            int y = Ra4x_Slot_Y(Y, i);
 
             /*
             **	Fetch the shape number for the object type located at this current working
@@ -1960,8 +2049,8 @@ void SidebarClass::StripClass::SelectClass::Set_Owner(StripClass& strip, int ind
 {
     Strip = &strip;
     Index = index;
-    X = strip.X;
-    Y = strip.Y + ((index * OBJECT_HEIGHT) * RESFACTOR);
+    X = Ra4x_Slot_X(strip.X, index);
+    Y = Ra4x_Slot_Y(strip.Y, index);
 }
 
 /***********************************************************************************************

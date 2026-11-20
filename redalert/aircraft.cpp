@@ -93,6 +93,16 @@
 
 #include "function.h"
 
+/*
+**	Custom build (Red Alert): a "gunship" is an armed, human-owned helicopter. Gunships have unlimited
+**	missiles and never land on their own: they hover where a move or an attack ends instead of
+**	returning to a helipad, and engage nearby enemies by themselves.
+*/
+static bool Ra4x_Gunship(AircraftClass const* a)
+{
+    return a->House->IsHuman && !a->Class->IsFixedWing && a->Class->PrimaryWeapon != NULL && !a->IsALoaner;
+}
+
 /***********************************************************************************************
  * _Counts_As_Civ_Evac -- Is the specified object a candidate for civilian evac logic?         *
  *                                                                                             *
@@ -936,6 +946,10 @@ void AircraftClass::AI(void)
     assert(Aircraft.ID(this) == ID);
     assert(IsActive);
 
+    if (Ra4x_Gunship(this) && Class->MaxAmmo > 0 && Ammo < Class->MaxAmmo) {
+        Ammo = Class->MaxAmmo; // Custom build: unlimited missiles.
+    }
+
     /*
     **	A Mission change can always occur if the aircraft is landed or flying.
     */
@@ -985,7 +999,7 @@ void AircraftClass::AI(void)
     */
     // if (IsOwnedByPlayer && Class->SightRange && SightTimer == 0) {  // Changed to facilitate client/server
     // multiplayer. ST - 8/2/2019 2:29PM
-    if (House->IsHuman && Class->SightRange && SightTimer == 0) {
+    if (House->IsHuman && (Class->SightRange || Ra4x_Gunship(this)) && SightTimer == 0) {
         Look();
         SightTimer = TICKS_PER_SECOND;
     }
@@ -1877,7 +1891,9 @@ int AircraftClass::Mission_Move(void)
         if (!Target_Legal(NavCom)) {
             Enter_Idle_Mode();
         } else {
-            if (!Is_LZ_Clear(NavCom) || !Cell_Seems_Ok(As_Cell(NavCom))) {
+            if (Ra4x_Gunship(this)) {
+                Status = TAKE_OFF; // Custom build: gunships hover, so any destination will do.
+            } else if (!Is_LZ_Clear(NavCom) || !Cell_Seems_Ok(As_Cell(NavCom))) {
                 Assign_Destination(New_LZ(NavCom));
                 if (Team.Is_Valid()) {
                     Team->Assign_Mission_Target(NavCom);
@@ -1915,6 +1931,20 @@ int AircraftClass::Mission_Move(void)
     **	Fly toward target.
     */
     case FLY_TO_LZ:
+        if (Ra4x_Gunship(this)) {
+            /*
+            **	Custom build: gunships stop and hover over the destination instead of landing.
+            */
+            int distance = Process_Fly_To(true, NavCom);
+            if (distance < 0x0010) {
+                Set_Speed(0);
+                Assign_Destination(TARGET_NONE);
+                Enter_Idle_Mode();
+                return (1);
+            }
+            SecondaryFacing.Set_Desired(Direction(NavCom));
+            return (1);
+        }
         if (Is_LZ_Clear(NavCom)) {
             int distance = Process_Fly_To(true, NavCom);
 
@@ -2104,7 +2134,10 @@ void AircraftClass::Enter_Idle_Mode(bool)
                     }
                 }
 
-                if (Class->PrimaryWeapon != NULL) {
+                if (Ra4x_Gunship(this)) {
+                    Assign_Destination(TARGET_NONE);
+                    mission = MISSION_GUARD; // Custom build: hover in place.
+                } else if (Class->PrimaryWeapon != NULL) {
 
                     /*
                     **	Weapon equipped helicopters that run out of ammo and were
@@ -3815,6 +3848,25 @@ int AircraftClass::Mission_Guard(void)
     assert(Aircraft.ID(this) == ID);
     assert(IsActive);
 
+    /*
+    **	Custom build: armed human aircraft with ammunition engage enemies near them on their own,
+    **	whether parked or hovering.
+    */
+    if (House->IsHuman && !Team.Is_Valid() && Class->PrimaryWeapon != NULL && Ammo != 0 && !IsLanding
+        && !IsTakingOff) {
+        if (!Target_Legal(TarCom)) {
+            Assign_Target(Greatest_Threat(THREAT_AREA));
+        }
+        if (Target_Legal(TarCom)) {
+            Assign_Mission(MISSION_ATTACK);
+            return (1);
+        }
+        if (Ra4x_Gunship(this) && Height == FLIGHT_LEVEL) {
+            Set_Speed(0);
+            return (TICKS_PER_SECOND / 2); // Custom build: hover and keep watching.
+        }
+    }
+
     if (Height == FLIGHT_LEVEL) {
 
         /*
@@ -4500,6 +4552,8 @@ void AircraftClass::Look(bool incremental)
     int sight_range = Techno_Type_Class()->SightRange;
     if (Height == 0) {
         sight_range = 1;
+    } else if (House->IsHuman && !Class->IsFixedWing) {
+        sight_range = 10; // Custom build: human helicopters reveal 10 cells around them in flight.
     }
 
     if (sight_range) {

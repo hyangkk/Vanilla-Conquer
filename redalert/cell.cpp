@@ -1729,6 +1729,15 @@ int CellClass::Reduce_Tiberium(int levels)
 
     int reducer = 0;
 
+    if (levels > 0 && Land == LAND_TIBERIUM && Overlay >= OVERLAY_GEMS1 && Overlay <= OVERLAY_GEMS4) {
+        /*
+        **	Custom build: gem fields never run out. Fully mined gems leave the smallest gem
+        **	cluster behind (which still yields) and grow back over time.
+        */
+        OverlayData -= min(levels, (int)OverlayData);
+        return (levels);
+    }
+
     if (levels > 0 && Land == LAND_TIBERIUM) {
         if (OverlayData + 1 > levels) {
             OverlayData -= levels;
@@ -3084,6 +3093,13 @@ bool CellClass::Can_Tiberium_Grow(void) const
 
     if (Land_Type() != LAND_TIBERIUM)
         return (false);
+
+    /*
+    **	Custom build: gems grow back too (up to their densest look, level 2).
+    */
+    if (Overlay >= OVERLAY_GEMS1 && Overlay <= OVERLAY_GEMS4) {
+        return (OverlayData < 2);
+    }
 
     if (OverlayData >= 11)
         return (false);

@@ -503,6 +503,26 @@ int Main_Menu(unsigned int)
     int d_exit_h = 9 * RESFACTOR;
     int d_exit_x = 102 * RESFACTOR; // Added V.Grippi
 
+    /*
+    **	Custom build: centre the menu (drawn for 320x200 units) on wider game canvases, like the
+    **	centred title picture.
+    */
+    const int menu_x = (SeenBuff.Get_Width() - 320 * RESFACTOR) / 2;
+    const int menu_y = (SeenBuff.Get_Height() - 200 * RESFACTOR) / 2;
+    d_dialog_x += menu_x;
+    d_dialog_y += menu_y;
+    d_dialog_cx += menu_x;
+    d_start_x += menu_x;
+#ifndef FIXIT_VERSION_3
+#ifndef INTERNET_OFF
+    d_internet_x += menu_x;
+#endif
+#endif
+    d_load_x += menu_x;
+    d_multi_x += menu_x;
+    d_intro_x += menu_x;
+    d_exit_x += menu_x;
+
     int starty = d_dialog_y + (12 * RESFACTOR);
 
     static int max_buttons = 7;
@@ -919,10 +939,10 @@ int Main_Menu(unsigned int)
             if (Coordinates_In_Region(Keyboard->MouseQX,
                                       Keyboard->MouseQY,
 
-                                      9 * RESFACTOR,
-                                      10 * RESFACTOR,
-                                      79 * RESFACTOR,
-                                      24 * RESFACTOR)) {
+                                      menu_x + 9 * RESFACTOR,
+                                      menu_y + 10 * RESFACTOR,
+                                      menu_x + 79 * RESFACTOR,
+                                      menu_y + 24 * RESFACTOR)) {
                 Show_Who_Was_Responsible();
                 display = true;
                 Theme.Play_Song(THEME_INTRO);
@@ -935,7 +955,7 @@ int Main_Menu(unsigned int)
 #endif
                 if ((Keyboard->Down(KN_LSHIFT) || Keyboard->Down(KN_RSHIFT))
                     && Coordinates_In_Region(
-                        Keyboard->MouseQX, Keyboard->MouseQY, 260 * RESFACTOR, 0, 320 * RESFACTOR, 50 * RESFACTOR)) {
+                        Keyboard->MouseQX, Keyboard->MouseQY, menu_x + 260 * RESFACTOR, menu_y, menu_x + 320 * RESFACTOR, menu_y + 50 * RESFACTOR)) {
                     AntsEnabled = true;
                     process = false;
 #ifdef FIXIT_VERSION_3

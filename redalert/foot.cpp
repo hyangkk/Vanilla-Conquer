@@ -1186,6 +1186,14 @@ ResultType FootClass::Take_Damage(int& damage, int distance, WarheadType warhead
                 int primary = What_Weapon_Should_I_Use(source->As_Target());
                 if (In_Range(source, primary) || !House->IsHuman) {
                     Assign_Target(source->As_Target());
+                } else if (Mission == MISSION_GUARD || Mission == MISSION_GUARD_AREA) {
+                    /*
+                    **	Custom build: a human unit hit from beyond its reach (artillery, etc.) goes after
+                    **	the attacker instead of standing still. Explicit orders are left alone.
+                    */
+                    Assign_Target(source->As_Target());
+                    Assign_Mission(MISSION_ATTACK);
+                    Commence();
                 }
 
                 if (Mission == MISSION_AMBUSH) {

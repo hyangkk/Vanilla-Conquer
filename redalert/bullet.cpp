@@ -51,6 +51,15 @@
 
 #include "function.h"
 
+/*
+**	Custom build: the human player's cruisers are pinpoint accurate.
+*/
+static bool Ra4x_Pinpoint(TechnoClass const* payback)
+{
+    return payback != NULL && payback->IsActive && payback->What_Am_I() == RTTI_VESSEL && payback->House->IsHuman
+           && *((VesselClass const*)payback) == VESSEL_CA;
+}
+
 /***********************************************************************************************
  * BulletClass::BulletClass -- Bullet constructor.                                             *
  *                                                                                             *
@@ -758,8 +767,14 @@ bool BulletClass::Unlimbo(COORDINATE coord, DirType dir)
         **	turrets or anti-tank missiles are fired at infantry. Indirect
         **	fire is inherently inaccurate.
         */
-        if (IsInaccurate || Class->IsInaccurate
-            || ((Is_Target_Cell(TarCom) || Is_Target_Infantry(TarCom)) && (Warhead == WARHEAD_AP || Class->IsFueled))) {
+        /*
+        **	Custom build: shells from the human player's cruisers always land on target.
+        */
+        bool pinpoint = Ra4x_Pinpoint(Payback);
+        if (!pinpoint
+            && (IsInaccurate || Class->IsInaccurate
+                || ((Is_Target_Cell(TarCom) || Is_Target_Infantry(TarCom))
+                    && (Warhead == WARHEAD_AP || Class->IsFueled)))) {
 
             /*
             **	Inaccuracy for low velocity or homing projectiles manifests itself as a standard
@@ -1021,6 +1036,18 @@ bool BulletClass::Is_Forced_To_Explode(COORDINATE& coord) const
  *=============================================================================================*/
 void BulletClass::Bullet_Explodes(bool forced)
 {
+    /*
+    **	Custom build: shells from the human player's cruisers land exactly on the target, even if it
+    **	moved while the shell was in flight.
+    */
+    if (Ra4x_Pinpoint(Payback)) {
+        if (Target_Legal(TarCom) && !Is_Target_Aircraft(TarCom)) {
+            Coord = ::As_Coord(TarCom);
+        } else if (Fuse_Target()) {
+            Coord = Fuse_Target();
+        }
+    }
+
     /*
     **	When the target is reached, explode and do the damage
     **	required of it. For homing objects, don't force the explosion to

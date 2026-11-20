@@ -19,4 +19,10 @@ bool Ra4x_Exit_Without_Factory(HouseClass* house, TechnoClass* object);
 CELL Ra4x_Production_Anchor(const HouseClass* house);
 void Ra4x_Add_All_Buildables(const HouseClass* house);
 
+/*
+**	Auto-targeting priority for human-owned objects: 3 = enemy attacking us, 2 = other enemy,
+**	1 = unarmed enemy structure or wall (last resort), 0 = none.
+*/
+int Ra4x_Target_Rank(TechnoClass const* self, TARGET target);
+
 #endif

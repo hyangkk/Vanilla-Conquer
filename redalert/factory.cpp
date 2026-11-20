@@ -191,13 +191,28 @@ void FactoryClass::operator delete(void* ptr)
  *   12/26/1994 JLB : Created.                                                                 *
  *   01/04/1995 JLB : Uses exact installment payment method.                                   *
  *=============================================================================================*/
+bool Ra4x_Smart_AI(const HouseClass* house); // house.cpp (custom build smart campaign AI)
+
 void FactoryClass::AI(void)
 {
     assert(Factories.ID(this) == ID);
 
     if (!IsSuspended && (Object != NULL || SpecialItem)) {
-        for (int index = 0; index < 1; index++) {
-            if (!Has_Completed() && Graphic_Logic()) {
+        /*
+        **	Custom build: factories of the smart campaign AI (enemy computer houses) produce exactly
+        **	twice as fast: every production tick advances two steps (STEP_COUNT is even) and charges
+        **	for both, so an order finishes in half the frames for the same total cost.
+        */
+        int steps = Ra4x_Smart_AI(House) ? 2 : 1;
+        bool tick = !Has_Completed() && Graphic_Logic();
+        for (int index = 0; index < steps && tick; index++) {
+            if (index > 0) {
+                if (Has_Completed() || Fetch_Stage() >= STEP_COUNT) {
+                    break;
+                }
+                Set_Stage(Fetch_Stage() + 1);
+            }
+            {
                 IsDifferent = true;
 
                 int cost = Cost_Per_Tick();
@@ -212,6 +227,7 @@ void FactoryClass::AI(void)
                 */
                 if (cost > House->Available_Money()) {
                     Set_Stage(Fetch_Stage() - 1);
+                    break;
                 } else {
                     House->Spend_Money(cost);
                     Balance -= cost;

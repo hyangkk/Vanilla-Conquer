@@ -115,6 +115,7 @@ public:
     virtual void Init_IO(void);                     // Inits button list
     virtual void Init_Theater(TheaterType theater); // Theater-specific inits
     void Reload_Sidebar(void);                      // Loads house-specific sidebar art
+    void Ra4x_Layout(void);                         // Custom build: wide 2x2-column sidebar geometry
 
     virtual void AI(KeyNumType& input, int x, int y);
     virtual void Draw_It(bool complete);
@@ -196,10 +197,10 @@ public:
             OBJECT_HEIGHT = 24,  // Pixel height of each buildable object.
             OBJECT_WIDTH = 32,   // Pixel width of each buildable object.
             STRIP_WIDTH = 35,    // Width of strip (not counting border lines).
-            MAX_VISIBLE = 4,     // Number of object slots visible at any one time.
+            MAX_VISIBLE = 30,    // Custom build: capacity of the 2-column grid (rows fitted to the screen).
             SCROLL_RATE = 12,    // The pixel jump while scrolling (larger is faster).
             UP_X_OFFSET = 2,     // Scroll up arrow coordinates.
-            UP_Y_OFFSET = int(MAX_VISIBLE) * int(OBJECT_HEIGHT) + 1,
+            UP_Y_OFFSET = 4 * int(OBJECT_HEIGHT) + 1, // Custom build: unused, see Ra4x_Rows().
             DOWN_X_OFFSET = 18,          // Scroll down arrow coordinates.
             DOWN_Y_OFFSET = UP_Y_OFFSET, // BGint(MAX_VISIBLE)*int(OBJECT_HEIGHT)+1,
             SBUTTON_WIDTH = 16,          // Width of the mini-scroll button.

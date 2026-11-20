@@ -130,6 +130,24 @@ void PowerClass::Init_Clear(void)
  * HISTORY:                                                                                    *
  *   12/26/1994 JLB : Created.                                                                 *
  *=============================================================================================*/
+/*
+**	Custom build: the human player has unlimited power, so the power bar always shows full output.
+*/
+static int Ra4x_Shown_Power(void)
+{
+    return (PlayerPtr->IsHuman ? 9999 : PlayerPtr->Power);
+}
+
+int Hud_Shift_X(void)
+{
+    return SeenBuff.Get_Width() - 320 * RESFACTOR;
+}
+
+int Power_Shift_X(void)
+{
+    return Hud_Shift_X() - 64 * RESFACTOR;
+}
+
 void PowerClass::One_Time(void)
 {
     RadarClass::One_Time();
@@ -137,7 +155,7 @@ void PowerClass::One_Time(void)
     bool dosmode = (RESFACTOR == 1);
     POWER_Y = (dosmode) ? (88 + 9) : (7 + 70 + 13);
     POWER_HEIGHT = (dosmode) ? (80) : (200 - POWER_Y);
-    PowerButton.X = POWER_X * RESFACTOR;
+    PowerButton.X = POWER_X * RESFACTOR + Power_Shift_X();
     PowerButton.Y = POWER_Y * RESFACTOR;
     PowerButton.Width = (POWER_WIDTH * RESFACTOR) - 1;
     PowerButton.Height = POWER_HEIGHT * RESFACTOR;
@@ -184,7 +202,7 @@ void PowerClass::Draw_It(bool complete)
                 //LTGREY);
                 CC_Draw_Shape(PowerBarShape,
                               0,
-                              240 * RESFACTOR,
+                              240 * RESFACTOR + Power_Shift_X(),
                               88 * RESFACTOR,
                               WINDOW_MAIN,
                               flags | SHAPE_NORMAL | SHAPE_WIN_REL,
@@ -196,7 +214,7 @@ void PowerClass::Draw_It(bool complete)
                     */
                     CC_Draw_Shape(PowerBarShape,
                                   1,
-                                  240 * RESFACTOR,
+                                  240 * RESFACTOR + Power_Shift_X(),
                                   (88 * RESFACTOR) + (56 * RESFACTOR),
                                   WINDOW_MAIN,
                                   flags | SHAPE_NORMAL | SHAPE_WIN_REL,
@@ -223,11 +241,11 @@ void PowerClass::Draw_It(bool complete)
                     int color1 = 3;
                     int color2 = 4;
 
-                    if (PlayerPtr->Drain > PlayerPtr->Power) {
+                    if (PlayerPtr->Drain > Ra4x_Shown_Power()) {
                         color1 = 214;
                         color2 = 211;
                     }
-                    if (PlayerPtr->Drain > (PlayerPtr->Power * 2)) {
+                    if (PlayerPtr->Drain > (Ra4x_Shown_Power() * 2)) {
                         color1 = 235;
                         color2 = 230;
                     }
@@ -245,8 +263,8 @@ void PowerClass::Draw_It(bool complete)
                     }
                     bottom = (175 * RESFACTOR) + 1;
 
-                    LogicPage->Fill_Rect(245 * RESFACTOR, bottom - power_height, 245 * RESFACTOR + 1, bottom, color2);
-                    LogicPage->Fill_Rect(246 * RESFACTOR, bottom - power_height, 246 * RESFACTOR + 1, bottom, color1);
+                    LogicPage->Fill_Rect(245 * RESFACTOR + Power_Shift_X(), bottom - power_height, 245 * RESFACTOR + 1 + Power_Shift_X(), bottom, color2);
+                    LogicPage->Fill_Rect(246 * RESFACTOR + Power_Shift_X(), bottom - power_height, 246 * RESFACTOR + 1 + Power_Shift_X(), bottom, color1);
                 }
 
                 /*
@@ -254,7 +272,7 @@ void PowerClass::Draw_It(bool complete)
                 */
                 CC_Draw_Shape(PowerShape,
                               0,
-                              (POWER_X * RESFACTOR) + RESFACTOR,
+                              (POWER_X * RESFACTOR) + RESFACTOR + Power_Shift_X(),
                               bottom - (drain_height + (2 * RESFACTOR)),
                               WINDOW_MAIN,
                               flags | SHAPE_NORMAL,
@@ -294,9 +312,9 @@ void PowerClass::AI(KeyNumType& input, int x, int y)
         ** If the recorded power value has changed we need to adjust for
         ** it.
         */
-        if (PlayerPtr->Power != RecordedPower) {
-            DesiredPowerHeight = Power_Height(PlayerPtr->Power);
-            RecordedPower = PlayerPtr->Power;
+        if (Ra4x_Shown_Power() != RecordedPower) {
+            DesiredPowerHeight = Power_Height(Ra4x_Shown_Power());
+            RecordedPower = Ra4x_Shown_Power();
             PowerBounce = 12;
             if (PowerHeight > DesiredPowerHeight) {
                 PowerDir = -1;

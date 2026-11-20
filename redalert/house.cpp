@@ -832,6 +832,404 @@ bool Campaign_All_Tech(const HouseClass* house)
            && house->IsHuman;
 }
 
+/*
+**	Custom build (Red Alert): smarter, more aggressive computer AI for the enemies of the human player
+**	in campaign missions. Ra4x_Smart_AI_Enabled only exists so a verification probe can compare with
+**	the original behaviour; the game never changes it. No state is added to saved classes: everything
+**	below is recomputed from the existing (saved) house, object and map data.
+*/
+bool Ra4x_Smart_AI_Enabled = true;
+
+bool Ra4x_Smart_AI(const HouseClass* house)
+{
+    return Ra4x_Smart_AI_Enabled && house != NULL && house->IsActive && Session.Type == GAME_NORMAL
+           && !house->IsHuman && PlayerPtr != NULL && house != PlayerPtr && house->Class->House != HOUSE_NEUTRAL
+           && !house->Is_Ally(PlayerPtr);
+}
+
+/*
+**	IQ the AI acts with: full IQ for the smart campaign AI (repair, superweapons, harvesters, aircraft,
+**	guard area), otherwise the house's own IQ.
+*/
+int Ra4x_AI_IQ(const HouseClass* house)
+{
+    return Ra4x_Smart_AI(house) ? (int)Rule.MaxIQ : (int)house->IQ;
+}
+
+/*
+**	Tech level the smart AI builds up to: the house's own level (the scenario's setting, else the mission
+**	number), but at least 3 so even early-mission bases can add a war factory and light vehicles.
+*/
+static int Ra4x_AI_Tech_Level(const HouseClass* house)
+{
+    return max((int)house->Control.TechLevel, 3);
+}
+
+/*
+**	The computer may build anything in a campaign (Can_Build always says yes). For the smart AI's own
+**	base building and army choices, stay with the house's side and tech level so a Soviet base is not
+**	filled with Allied structures.
+*/
+static bool Ra4x_AI_Can_Build(const HouseClass* house, TechnoTypeClass const* type)
+{
+    if (type == NULL || !house->Can_Build(type, house->ActLike)) {
+        return false;
+    }
+    if (!Ra4x_Smart_AI(house)) {
+        return true;
+    }
+    if ((type->Get_Ownable() & ((1L << house->ActLike) | (1L << house->Class->House))) == 0) {
+        return false;
+    }
+    return (int)type->Level <= Ra4x_AI_Tech_Level(house);
+}
+
+/*
+**	Number of this type of structure the house has standing on the map (not the one in production).
+*/
+static int Ra4x_Placed(const HouseClass* house, StructType type)
+{
+    int count = 0;
+    for (int i = 0; i < Buildings.Count(); i++) {
+        BuildingClass const* b = Buildings.Ptr(i);
+        if (b != NULL && b->IsActive && !b->IsInLimbo && b->Owner() == house->Class->House && *b == type) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static int Ra4x_Cell_Distance(CELL a, CELL b)
+{
+    int dx = abs(Cell_X(a) - Cell_X(b));
+    int dy = abs(Cell_Y(a) - Cell_Y(b));
+    return max(dx, dy) + min(dx, dy) / 2;
+}
+
+/*
+**	Ore density map in 4x4 cell blocks (gems count double). Ra4x_Ore_Near() sums a 12x12 cell area.
+*/
+#define RA4X_ORE_BLOCK 4
+#define RA4X_ORE_BW    (MAP_CELL_W / RA4X_ORE_BLOCK)
+#define RA4X_ORE_BH    (MAP_CELL_H / RA4X_ORE_BLOCK)
+static short Ra4x_OreBlocks[RA4X_ORE_BH][RA4X_ORE_BW];
+
+static int Ra4x_Scan_Ore(void)
+{
+    int total = 0;
+    memset(Ra4x_OreBlocks, 0, sizeof(Ra4x_OreBlocks));
+    for (CELL cell = 0; cell < MAP_CELL_TOTAL; cell++) {
+        if (!Map.In_Radar(cell)) {
+            continue;
+        }
+        CellClass const& c = Map[cell];
+        if (c.Land_Type() == LAND_TIBERIUM) {
+            int v = (c.Overlay >= OVERLAY_GEMS1 && c.Overlay <= OVERLAY_GEMS4) ? 2 : 1;
+            Ra4x_OreBlocks[Cell_Y(cell) / RA4X_ORE_BLOCK][Cell_X(cell) / RA4X_ORE_BLOCK] += v;
+            total += v;
+        }
+    }
+    return total;
+}
+
+static int Ra4x_Ore_Near(CELL cell)
+{
+    int bx = Cell_X(cell) / RA4X_ORE_BLOCK;
+    int by = Cell_Y(cell) / RA4X_ORE_BLOCK;
+    int sum = 0;
+    for (int y = max(0, by - 1); y <= min(RA4X_ORE_BH - 1, by + 1); y++) {
+        for (int x = max(0, bx - 1); x <= min(RA4X_ORE_BW - 1, bx + 1); x++) {
+            sum += Ra4x_OreBlocks[y][x];
+        }
+    }
+    return sum;
+}
+
+/*
+**	Smart AI refinery placement: the legal spot (normal adjacency rules) with the most ore around it,
+**	preferring spots close to the base. Returns 0 if there is no ore next to any legal spot.
+*/
+static CELL Ra4x_Refinery_Cell(const HouseClass* house, BuildingClass* building)
+{
+    if (Ra4x_Scan_Ore() == 0) {
+        return 0;
+    }
+    BuildingTypeClass const* btype = building->Class;
+    short const* list = building->Occupy_List(true);
+    CELL center = Coord_Cell(house->Center);
+    int best = 0;
+    CELL bestcell = 0;
+    for (CELL cell = 0; cell < MAP_CELL_TOTAL; cell++) {
+        if (!Map.In_Radar(cell)) {
+            continue;
+        }
+        int ore = Ra4x_Ore_Near(cell);
+        if (ore < 4) {
+            continue;
+        }
+        int score = min(ore, 60) * 8 - (house->Center ? Ra4x_Cell_Distance(cell, center) : 0) + 1000;
+        if (score <= best) {
+            continue;
+        }
+        if (btype->Legal_Placement(cell) && Map.Passes_Proximity_Check(btype, house->Class->House, list, cell)) {
+            best = score;
+            bestcell = cell;
+        }
+    }
+    return bestcell;
+}
+
+/*
+**	Smart AI expansion: a spot where a construction yard fits next to a rich ore field, well away from
+**	this house's other construction yards and from the player's buildings, and reachable over land
+**	from the given cell. Returns 0 if there is none.
+*/
+static CELL Ra4x_Expansion_Cell(const HouseClass* house, CELL from)
+{
+    if (Ra4x_Scan_Ore() == 0) {
+        return 0;
+    }
+    BuildingTypeClass const& yard = BuildingTypeClass::As_Reference(STRUCT_CONST);
+    int zone = Map[from].Zones[MZONE_NORMAL];
+    int best = 0;
+    CELL bestcell = 0;
+    for (CELL cell = 0; cell < MAP_CELL_TOTAL; cell++) {
+        if ((Cell_X(cell) & 1) || (Cell_Y(cell) & 1) || !Map.In_Radar(cell)) {
+            continue;
+        }
+        int ore = Ra4x_Ore_Near(cell);
+        if (ore < 12) {
+            continue;
+        }
+        if (Map[cell].Zones[MZONE_NORMAL] != zone) {
+            continue;
+        }
+        int score = min(ore, 60) * 8 - Ra4x_Cell_Distance(cell, from) + 1000;
+        if (score <= best) {
+            continue;
+        }
+        bool ok = true;
+        for (int i = 0; i < Buildings.Count() && ok; i++) {
+            BuildingClass const* b = Buildings.Ptr(i);
+            if (b == NULL || !b->IsActive || b->IsInLimbo) {
+                continue;
+            }
+            int d = Ra4x_Cell_Distance(cell, Coord_Cell(b->Center_Coord()));
+            if (b->House == house && d < (*b == STRUCT_CONST ? 16 : 8)) {
+                ok = false;
+            } else if (b->House != house && !house->Is_Ally(b->House) && d < 18) {
+                ok = false;
+            }
+        }
+        if (ok && yard.Legal_Placement(Adjacent_Cell(cell, FACING_NW))) {
+            best = score;
+            bestcell = cell;
+        }
+    }
+    return bestcell;
+}
+
+/*
+**	Called by an idle computer MCV (UnitClass::Mission_Guard). If its house already has a construction
+**	yard, send the MCV to an ore-rich expansion spot instead of deploying next to the factory. Returns
+**	true if the MCV was given a move order. The MCV deploys (normal logic) once it gets there, or where
+**	it stands if there is no expansion spot or it failed to reach the same spot a few times. The trip
+**	table is a non-saved helper keyed by unit slot; after a load the MCV just gets a fresh set of tries.
+*/
+static unsigned char Ra4x_McvTrips[UNIT_MAX];
+static CELL Ra4x_McvGoal[UNIT_MAX];
+
+bool Ra4x_AI_Direct_MCV(UnitClass* mcv)
+{
+    if (mcv == NULL || !Ra4x_Smart_AI(mcv->House) || mcv->House->Get_Quantity(STRUCT_CONST) == 0) {
+        return false;
+    }
+    int id = mcv->ID;
+    if (id < 0 || id >= UNIT_MAX) {
+        return false;
+    }
+    CELL here = Coord_Cell(mcv->Center_Coord());
+
+    /*
+    **	Arrived at (or close to) the spot picked earlier: deploy here. The MCV itself now stands on
+    **	that spot, so it must not be searched for again.
+    */
+    if (Ra4x_McvGoal[id] != 0 && Ra4x_Cell_Distance(here, Ra4x_McvGoal[id]) <= 3) {
+        Ra4x_McvGoal[id] = 0;
+        return false;
+    }
+    if (Ra4x_McvTrips[id] >= 6) {
+        return false;
+    }
+    CELL target = Ra4x_Expansion_Cell(mcv->House, here);
+    if (target == 0 || Ra4x_Cell_Distance(here, target) <= 2) {
+        return false;
+    }
+    Ra4x_McvGoal[id] = target;
+    Ra4x_McvTrips[id]++;
+    mcv->Assign_Target(TARGET_NONE);
+    mcv->Assign_Destination(::As_Target(target));
+    mcv->Assign_Mission(MISSION_MOVE);
+    return true;
+}
+
+/*
+**	Smart AI: if the house is broke while a structure or harvester waits for money, cancel (with full
+**	refund) the army orders that are still in production so the economy item can finish. This breaks
+**	the stock AI's dead end of two half-paid orders and no income.
+*/
+static void Ra4x_Unstick_Production(HouseClass* house)
+{
+    if (!Ra4x_Smart_AI(house) || house->Available_Money() >= 50) {
+        return;
+    }
+    bool building_waits = false;
+    bool harvester_waits = false;
+    for (int i = 0; i < Factories.Count(); i++) {
+        FactoryClass* f = Factories.Ptr(i);
+        TechnoClass* o = f ? f->Get_Object() : NULL;
+        if (o != NULL && o->Owner() == house->Class->House && !f->Has_Completed()) {
+            if (o->What_Am_I() == RTTI_BUILDING) {
+                building_waits = true;
+            } else if (o->What_Am_I() == RTTI_UNIT && ((UnitClass*)o)->Class->IsToHarvest) {
+                harvester_waits = true;
+            }
+        }
+    }
+    if (!building_waits && !harvester_waits) {
+        return;
+    }
+
+    /*
+    **	With no harvester at work, a waiting harvester comes first, even before structures.
+    */
+    int harvesting = 0;
+    for (int i = 0; i < Units.Count(); i++) {
+        UnitClass const* u = Units.Ptr(i);
+        if (u != NULL && u->IsActive && !u->IsInLimbo && u->Owner() == house->Class->House && u->Class->IsToHarvest) {
+            harvesting++;
+        }
+    }
+    for (int i = 0; i < Factories.Count(); i++) {
+        FactoryClass* f = Factories.Ptr(i);
+        TechnoClass* o = f ? f->Get_Object() : NULL;
+        if (o == NULL || o->Owner() != house->Class->House || f->Has_Completed()) {
+            continue;
+        }
+        if (o->What_Am_I() == RTTI_UNIT && ((UnitClass*)o)->Class->IsToHarvest) {
+            continue;
+        }
+        if (o->What_Am_I() == RTTI_BUILDING && !(harvester_waits && harvesting == 0)) {
+            continue;
+        }
+        f->Abandon();
+    }
+}
+
+/*
+**	Smart AI economy first: money kept back from army production (team fillers and extras) while the
+**	house lacks a refinery (and could build one) or has fewer harvesters than refineries.
+*/
+static int Ra4x_Army_Reserve(HouseClass* house, int harvesters)
+{
+    if (!Ra4x_Smart_AI(house)) {
+        return 0;
+    }
+    int refineries = Ra4x_Placed(house, STRUCT_REFINERY);
+    if (refineries == 0 && house->Get_Quantity(STRUCT_CONST) > 0 && !house->IsTiberiumShort) {
+        return BuildingTypeClass::As_Reference(STRUCT_REFINERY).Cost_Of() * 2 + 500;
+    }
+    if (refineries > 0 && house->Get_Quantity(STRUCT_WEAP) > 0 && !house->IsTiberiumShort
+        && harvesters < refineries) {
+        return UnitTypeClass::As_Reference(UNIT_HARVESTER).Cost_Of() + 100;
+    }
+    return 0;
+}
+
+/*
+**	Gathered-force attack for the smart AI: count the idle, armed, factory-built (PurchasePrice > 0)
+**	combat objects that are not in a scripted team. Units the mission placed (guards, ambushes) have
+**	PurchasePrice 0 and are never touched. Once enough are gathered they all go hunting together.
+*/
+static bool Ra4x_Idle_Attacker(HouseClass const* house, FootClass const* f)
+{
+    if (f == NULL || !f->IsActive || f->IsInLimbo || f->House != house || f->Strength <= 0 || f->PurchasePrice == 0
+        || f->Team.Is_Valid() || !f->Is_Weapon_Equipped()) {
+        return false;
+    }
+    if (f->What_Am_I() == RTTI_UNIT) {
+        UnitClass const* u = (UnitClass const*)f;
+        if (u->Class->IsToHarvest || *u == UNIT_MCV || *u == UNIT_MINELAYER) {
+            return false;
+        }
+    }
+    MissionType m = f->Get_Mission();
+    return m == MISSION_GUARD || m == MISSION_GUARD_AREA || m == MISSION_STOP || m == MISSION_NONE;
+}
+
+int Ra4x_AI_Waves[HOUSE_COUNT]; // attack waves launched (statistics for the verification probe)
+
+static int Ra4x_Smart_Attack(HouseClass* house, bool& launched)
+{
+    launched = false;
+    int idle = 0;
+    for (int i = 0; i < Units.Count(); i++) {
+        idle += Ra4x_Idle_Attacker(house, Units.Ptr(i)) ? 1 : 0;
+    }
+    for (int i = 0; i < Infantry.Count(); i++) {
+        idle += Ra4x_Idle_Attacker(house, Infantry.Ptr(i)) ? 1 : 0;
+    }
+    for (int i = 0; i < Vessels.Count(); i++) {
+        idle += Ra4x_Idle_Attacker(house, Vessels.Ptr(i)) ? 1 : 0;
+    }
+
+    /*
+    **	The wave grows with time: 8 objects early on, up to 20 later in the mission.
+    */
+    int wave = min(20, 8 + (int)(Frame / (TICKS_PER_MINUTE * 2)));
+    if (idle < wave) {
+        return (Random_Pick(TICKS_PER_SECOND * 15, TICKS_PER_SECOND * 30));
+    }
+
+    for (int i = 0; i < Units.Count(); i++) {
+        UnitClass* u = Units.Ptr(i);
+        if (Ra4x_Idle_Attacker(house, u)) {
+            u->Assign_Mission(MISSION_HUNT);
+        }
+    }
+    for (int i = 0; i < Infantry.Count(); i++) {
+        InfantryClass* n = Infantry.Ptr(i);
+        if (Ra4x_Idle_Attacker(house, n)) {
+            n->Assign_Mission(MISSION_HUNT);
+        }
+    }
+    for (int i = 0; i < Vessels.Count(); i++) {
+        VesselClass* v = Vessels.Ptr(i);
+        if (Ra4x_Idle_Attacker(house, v)) {
+            v->Assign_Mission(MISSION_HUNT);
+        }
+    }
+    for (int i = 0; i < Aircraft.Count(); i++) {
+        AircraftClass* a = Aircraft.Ptr(i);
+        if (a != NULL && a->IsActive && !a->IsInLimbo && a->House == house && a->PurchasePrice > 0
+            && !a->Team.Is_Valid() && a->Is_Weapon_Equipped() && a->Get_Mission() != MISSION_HUNT) {
+            a->Assign_Mission(MISSION_HUNT);
+        }
+    }
+    Ra4x_AI_Waves[house->Class->House]++;
+    launched = true;
+    return (Random_Pick(TICKS_PER_MINUTE, TICKS_PER_MINUTE * 2));
+}
+
+/*
+**	Custom build: with the Aftermath data installed, the all-tech player may build the Aftermath and
+**	Counterstrike units in every mission.
+*/
+static bool Ra4x_New_Units(void)
+{
+    return NewUnitsEnabled || Is_Aftermath_Installed();
+}
+
 bool Campaign_All_Tech_Type(const ObjectTypeClass* type, const HouseClass* house)
 {
     if (type == NULL || !Campaign_All_Tech(house)) {
@@ -844,17 +1242,17 @@ bool Campaign_All_Tech_Type(const ObjectTypeClass* type, const HouseClass* house
         break;
     case RTTI_UNITTYPE:
         id = ((UnitTypeClass const*)type)->Type;
-        if (!NewUnitsEnabled && id >= UNIT_RA_COUNT)
+        if (!Ra4x_New_Units() && id >= UNIT_RA_COUNT)
             return false;
         break;
     case RTTI_INFANTRYTYPE:
         id = ((InfantryTypeClass const*)type)->Type;
-        if (!NewUnitsEnabled && id >= INFANTRY_RA_COUNT)
+        if (!Ra4x_New_Units() && id >= INFANTRY_RA_COUNT)
             return false;
         break;
     case RTTI_VESSELTYPE:
         id = ((VesselTypeClass const*)type)->Type;
-        if (!NewUnitsEnabled && id >= VESSEL_RA_COUNT)
+        if (!Ra4x_New_Units() && id >= VESSEL_RA_COUNT)
             return false;
         break;
     case RTTI_AIRCRAFTTYPE:
@@ -1009,7 +1407,7 @@ bool HouseClass::Can_Build(ObjectTypeClass const* type, HousesType house) const
     ** game in 'downshifted' mode against CounterStrike or Red Alert, then
     ** don't allow building this unit.
     */
-    if (!NewUnitsEnabled) {
+    if (!NewUnitsEnabled && !(Campaign_All_Tech(this) && Is_Aftermath_Installed())) {
         switch (type->What_Am_I()) {
         case RTTI_INFANTRYTYPE:
             if (((InfantryTypeClass*)type)->ID >= INFANTRY_RA_COUNT)
@@ -1128,6 +1526,25 @@ void HouseClass::Init(void)
 extern void Logic_Switch_Player_Context(HouseClass* house);
 extern bool MPSuperWeaponDisable;
 
+/*
+**	Custom build (Red Alert): the campaign all-tech player gets every special weapon regardless of
+**	the mission's tech level, and either tech center (Allied or Soviet) provides the GPS satellite.
+*/
+static int Ra4x_Super_Level(const HouseClass* house)
+{
+    return Campaign_All_Tech(house) ? 99 : house->Control.TechLevel;
+}
+
+static unsigned Ra4x_GPS_Tech(const HouseClass* house)
+{
+    return Campaign_All_Tech(house) ? (STRUCTF_ADVANCED_TECH | STRUCTF_SOVIET_TECH) : STRUCTF_ADVANCED_TECH;
+}
+
+static bool Ra4x_Is_GPS_Tech(BuildingClass const* bldg, const HouseClass* house)
+{
+    return *bldg == STRUCT_ADVANCED_TECH || (*bldg == STRUCT_SOVIET_TECH && Campaign_All_Tech(house));
+}
+
 /***********************************************************************************************
  * HouseClass::AI -- Process house logic.                                                      *
  *                                                                                             *
@@ -1159,6 +1576,19 @@ void HouseClass::AI(void)
     **	production and team creation as well. This is also true if the IQ is high enough to
     **	being base building.
     */
+    /*
+    **	Custom build: an enemy computer house in a campaign mission that owns a construction yard or a
+    **	factory starts building right away (no trigger needed), runs the expert base-building AI and is
+    **	always alerted (sends its autocreate attack teams). It acts with full IQ (Ra4x_AI_IQ) without
+    **	changing the saved IQ, so build times keep their original IQ scaling (production is exactly 2x).
+    */
+    if (Ra4x_Smart_AI(this) && !IsDefeated
+        && (BScan
+            & (STRUCTF_CONST | STRUCTF_WEAP | STRUCTF_BARRACKS | STRUCTF_TENT | STRUCTF_KENNEL | STRUCTF_AIRSTRIP
+               | STRUCTF_HELIPAD | STRUCTF_SHIP_YARD | STRUCTF_SUB_PEN))) {
+        IsBaseBuilding = true;
+    }
+
     if (!IsHuman && (IsBaseBuilding || IQ >= Rule.IQProduction)) {
         IsBaseBuilding = true;
         IsStarted = true;
@@ -1220,6 +1650,9 @@ void HouseClass::AI(void)
         **	Adjusted to reduce maximum number of teams created.
         */
         int maxteams = Random_Pick(2, (int)(((Control.TechLevel - 1) / 3) + 1));
+        if (Ra4x_Smart_AI(this)) {
+            maxteams *= 2; // Custom build: twice as many autocreate teams per wave.
+        }
         for (int index = 0; index < maxteams; index++) {
             TeamTypeClass const* ttype = Suggested_New_Team(true);
             if (ttype != NULL) {
@@ -1229,6 +1662,9 @@ void HouseClass::AI(void)
             }
         }
         AlertTime = Rule.AutocreateTime * Random_Pick(TICKS_PER_MINUTE / 2, TICKS_PER_MINUTE * 2);
+        if (Ra4x_Smart_AI(this)) {
+            AlertTime = max(1, (int)AlertTime / 3); // Custom build: autocreate teams three times as often.
+        }
         //		int mintime = Rule.AutocreateTime * (TICKS_PER_MINUTE/2);
         //		int maxtime = Rule.AutocreateTime * (TICKS_PER_MINUTE*2);
         //		AlertTime = Random_Pick(mintime, maxtime);
@@ -1554,6 +1990,13 @@ void HouseClass::AI(void)
         }
     }
 
+    /*
+    **	Custom build: the campaign player always has at least 100 credits.
+    */
+    if (Campaign_All_Tech(this) && Available_Money() < 100) {
+        Refund_Money(100 - Available_Money());
+    }
+
     VisibleCredits.AI(false, this, true);
 
     /*
@@ -1693,7 +2136,7 @@ void HouseClass::Super_Weapon_Handler(void)
     ** is another good example, because it's a one-shot item.
     */
     if (SuperWeapon[SPC_GPS].Is_Present()) {
-        if (!(ActiveBScan & STRUCTF_ADVANCED_TECH) || IsGPSActive || IsDefeated) {
+        if (!(ActiveBScan & Ra4x_GPS_Tech(this)) || IsGPSActive || IsDefeated) {
             /*
             **	Remove the missile capability when there is no advanced tech facility.
             */
@@ -1715,9 +2158,11 @@ void HouseClass::Super_Weapon_Handler(void)
                 IsRecalcNeeded = true;
                 for (int index = 0; index < Buildings.Count(); index++) {
                     BuildingClass* bldg = Buildings.Ptr(index);
-                    if (*bldg == STRUCT_ADVANCED_TECH && bldg->House == this) {
+                    if (Ra4x_Is_GPS_Tech(bldg, this) && bldg->House == this) {
                         bldg->HasFired = true;
-                        bldg->Assign_Mission(MISSION_MISSILE);
+                        if (*bldg == STRUCT_ADVANCED_TECH) {
+                            bldg->Assign_Mission(MISSION_MISSILE);
+                        }
                         break;
                     }
                 }
@@ -1728,13 +2173,13 @@ void HouseClass::Super_Weapon_Handler(void)
         **	If there is no GPS satellite present, but there is a GPS satellite
         **	facility available, then make the GPS satellite available as well.
         */
-        if ((ActiveBScan & STRUCTF_ADVANCED_TECH) != 0 && !IsGPSActive && Control.TechLevel >= Rule.GPSTechLevel
-            && (IsHuman || IQ >= Rule.IQSuperWeapons)) {
+        if ((ActiveBScan & Ra4x_GPS_Tech(this)) != 0 && !IsGPSActive && Ra4x_Super_Level(this) >= Rule.GPSTechLevel
+            && (IsHuman || Ra4x_AI_IQ(this) >= Rule.IQSuperWeapons)) {
 
             bool canfire = false;
             for (int index = 0; index < Buildings.Count(); index++) {
                 BuildingClass* bldg = Buildings.Ptr(index);
-                if (*bldg == STRUCT_ADVANCED_TECH && bldg->House == this && !bldg->IsInLimbo) {
+                if (Ra4x_Is_GPS_Tech(bldg, this) && bldg->House == this && !bldg->IsInLimbo) {
                     if (!bldg->HasFired) {
                         canfire = true;
                         break;
@@ -1809,9 +2254,9 @@ void HouseClass::Super_Weapon_Handler(void)
         */
         if ((ActiveBScan & STRUCTF_CHRONOSPHERE) &&
             //			(ActLike == HOUSE_GOOD || Session.Type != GAME_NORMAL) &&
-            (unsigned)Control.TechLevel >= BuildingTypeClass::As_Reference(STRUCT_CHRONOSPHERE).Level &&
+            (unsigned)Ra4x_Super_Level(this) >= BuildingTypeClass::As_Reference(STRUCT_CHRONOSPHERE).Level &&
             //			Control.TechLevel >= Rule.ChronoTechLevel &&
-            (IsHuman || IQ >= Rule.IQSuperWeapons)) {
+            (IsHuman || Ra4x_AI_IQ(this) >= Rule.IQSuperWeapons)) {
 
             SuperWeapon[SPC_CHRONOSPHERE].Enable(false, this == PlayerPtr, Power_Fraction() < 1);
 
@@ -1863,7 +2308,7 @@ void HouseClass::Super_Weapon_Handler(void)
         */
         if ((ActiveBScan & STRUCTF_IRON_CURTAIN)
             && (ActLike == HOUSE_USSR || ActLike == HOUSE_UKRAINE || Session.Type != GAME_NORMAL)
-            && (IsHuman || IQ >= Rule.IQSuperWeapons)) {
+            && (IsHuman || Ra4x_AI_IQ(this) >= Rule.IQSuperWeapons)) {
 
             SuperWeapon[SPC_IRON_CURTAIN].Enable(false, this == PlayerPtr, Power_Fraction() < 1);
 
@@ -1955,7 +2400,7 @@ void HouseClass::Super_Weapon_Handler(void)
         */
         if ((ActiveBScan & STRUCTF_MSLO)
             && ((ActLike != HOUSE_USSR && ActLike != HOUSE_UKRAINE) || Session.Type != GAME_NORMAL)
-            && (IsHuman || IQ >= Rule.IQSuperWeapons)) {
+            && (IsHuman || Ra4x_AI_IQ(this) >= Rule.IQSuperWeapons)) {
 
             SuperWeapon[SPC_NUCLEAR_BOMB].Enable(false, this == PlayerPtr, Power_Fraction() < 1);
 
@@ -1995,7 +2440,7 @@ void HouseClass::Super_Weapon_Handler(void)
         }
     } else {
         if ((ActiveBScan & STRUCTF_AIRSTRIP) != 0 && !Scen.IsNoSpyPlane
-            && Control.TechLevel >= Rule.SpyPlaneTechLevel) {
+            && Ra4x_Super_Level(this) >= Rule.SpyPlaneTechLevel) {
             SuperWeapon[SPC_SPY_MISSION].Enable(false, this == PlayerPtr, false);
             // Add to Glyphx multiplayer sidebar. ST - 8/7/2019 10:13AM
             if (Session.Type == GAME_GLYPHX_MULTIPLAYER) {
@@ -2026,7 +2471,7 @@ void HouseClass::Super_Weapon_Handler(void)
             }
         }
     } else {
-        if ((ActiveBScan & STRUCTF_AIRSTRIP) != 0 && Control.TechLevel >= Rule.ParaBombTechLevel
+        if ((ActiveBScan & STRUCTF_AIRSTRIP) != 0 && Ra4x_Super_Level(this) >= Rule.ParaBombTechLevel
             && Session.Type == GAME_NORMAL) {
             SuperWeapon[SPC_PARA_BOMB].Enable(false, this == PlayerPtr, false);
             // Add to Glyphx multiplayer sidebar. ST - 8/7/2019 10:13AM
@@ -2058,7 +2503,7 @@ void HouseClass::Super_Weapon_Handler(void)
             }
         }
     } else {
-        if ((ActiveBScan & STRUCTF_AIRSTRIP) != 0 && Control.TechLevel >= Rule.ParaInfantryTechLevel) {
+        if ((ActiveBScan & STRUCTF_AIRSTRIP) != 0 && Ra4x_Super_Level(this) >= Rule.ParaInfantryTechLevel) {
             SuperWeapon[SPC_PARA_INFANTRY].Enable(false, this == PlayerPtr, false);
             // Add to Glyphx multiplayer sidebar. ST - 8/7/2019 10:13AM
             if (Session.Type == GAME_GLYPHX_MULTIPLAYER) {
@@ -2150,6 +2595,13 @@ void HouseClass::Harvested(unsigned tiberium)
 
     Tiberium += tiberium;
     if (Tiberium > Capacity) {
+        /*
+        **	Custom build: the smart campaign AI does not build silos, so ore that does not fit in
+        **	storage goes straight to its credits instead of being lost.
+        */
+        if (Ra4x_Smart_AI(this)) {
+            Credits += Tiberium - Capacity;
+        }
         Tiberium = Capacity;
         IsMaxedOut = true;
     }
@@ -4621,6 +5073,9 @@ fixed HouseClass::Power_Fraction(void) const
 {
     assert(Houses.ID(this) == ID);
 
+    if (IsHuman) {
+        return (1); // Custom build: the human player has unlimited power.
+    }
     if (Power >= Drain || Drain == 0)
         return (1);
 
@@ -4830,6 +5285,16 @@ COORDINATE HouseClass::Find_Build_Location(BuildingClass* building) const
     bool adj = true;
 
     /*
+    **	Custom build: the smart campaign AI puts refineries next to the richest reachable ore field.
+    */
+    if (Ra4x_Smart_AI(this) && *building == STRUCT_REFINERY) {
+        CELL ore = Ra4x_Refinery_Cell(this, building);
+        if (ore != 0) {
+            return (Cell_Coord(ore));
+        }
+    }
+
+    /*
     **	Never place combat buildings adjacent to each other. This is partly
     **	because combat buildings don't have a bib and jamming will occur as well
     **	as because spacing defensive buildings out will yield a better
@@ -4911,8 +5376,12 @@ COORDINATE HouseClass::Find_Build_Location(BuildingClass* building) const
     for (int zz = 0; zz < ARRAY_SIZE(_zones); zz++) {
         ZoneType tryzone = _zones[(zz + start) % ARRAY_SIZE(_zones)];
         zcell = Find_Cell_In_Zone(building, tryzone);
-        if (zcell)
-            return (zcell);
+        if (zcell) {
+            /*
+            **	Custom build: the original returned the cell number as if it were a coordinate.
+            */
+            return (Ra4x_Smart_AI(this) ? Cell_Coord(zcell) : (COORDINATE)zcell);
+        }
     }
 
     return (0);
@@ -5115,6 +5584,13 @@ int HouseClass::Expert_AI(void)
                 **	value can be determined.
                 */
                 if (!h->IsStarted) {
+                    /*
+                    **	Custom build: the smart campaign AI ignores dormant houses (civilians, empty
+                    **	scripted houses) instead of refusing to pick any enemy at all.
+                    */
+                    if (Ra4x_Smart_AI(this) && h != PlayerPtr) {
+                        continue;
+                    }
                     enemy = HOUSE_NONE;
                     break;
                 }
@@ -5217,6 +5693,8 @@ int HouseClass::Expert_AI(void)
             Control.MaxAircraft = maxaircraft + 10;
         }
     }
+
+    Ra4x_Unstick_Production(this);
 
     /*
     **	House state transition check occurs here. Transitions that occur here are ones
@@ -5534,6 +6012,16 @@ UrgencyType HouseClass::Check_Raise_Power(void) const
 bool HouseClass::AI_Attack(UrgencyType)
 {
     assert(Houses.ID(this) == ID);
+
+    /*
+    **	Custom build: the smart campaign AI gathers a force and then sends it in one wave, instead of
+    **	sending random units (including the mission's placed guards) off one by one.
+    */
+    if (Ra4x_Smart_AI(this)) {
+        bool launched = false;
+        Attack = Ra4x_Smart_Attack(this, launched);
+        return (launched);
+    }
 
     bool shuffle = !((Frame > TICKS_PER_MINUTE && !CurBuildings) || Percent_Chance(33));
     bool forced = (CurBuildings == 0);
@@ -5921,6 +6409,16 @@ int HouseClass::AI_Building(void)
         // TCTC -- Should multiply largest player base by some rational number.
         //		if (CurBuildings >= quant) return(TICKS_PER_SECOND);
 
+        /*
+        **	Custom build: the smart campaign AI stops at the house's building limit, and builds a few
+        **	more refineries, factories and barracks than the stock limits allow.
+        */
+        bool ra4x = Ra4x_Smart_AI(this);
+        if (ra4x && (CurBuildings >= Control.MaxBuilding || BQuantity[STRUCT_CONST] == 0)) {
+            return (TICKS_PER_SECOND);
+        }
+        int ra4x_more = ra4x ? 1 : 0;
+
         BuildChoice.Free_All();
         BuildChoiceClass* choiceptr;
         StructType stype = STRUCT_NONE;
@@ -5940,14 +6438,14 @@ int HouseClass::AI_Building(void)
         **	money available.
         */
         b = &BuildingTypeClass::As_Reference(STRUCT_ADVANCED_POWER);
-        if (Can_Build(b, ActLike) && Power <= Drain + Rule.PowerSurplus && b->Cost_Of() < money) {
+        if (Ra4x_AI_Can_Build(this, b) && Power <= Drain + Rule.PowerSurplus && b->Cost_Of() < money) {
             choiceptr = BuildChoice.Alloc();
             if (choiceptr != NULL) {
                 *choiceptr = BuildChoiceClass(BQuantity[STRUCT_REFINERY] == 0 ? URGENCY_LOW : URGENCY_MEDIUM, b->Type);
             }
         } else {
             b = &BuildingTypeClass::As_Reference(STRUCT_POWER);
-            if (Can_Build(b, ActLike) && Power <= Drain + Rule.PowerSurplus && b->Cost_Of() < money) {
+            if (Ra4x_AI_Can_Build(this, b) && Power <= Drain + Rule.PowerSurplus && b->Cost_Of() < money) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr =
@@ -5961,9 +6459,9 @@ int HouseClass::AI_Building(void)
         */
         unsigned int current = BQuantity[STRUCT_REFINERY];
         if (!IsTiberiumShort && current < Round_Up(Rule.RefineryRatio * fixed(CurBuildings))
-            && current < (unsigned)Rule.RefineryLimit) {
+            && current < (unsigned)(Rule.RefineryLimit + ra4x_more * 2)) {
             b = &BuildingTypeClass::As_Reference(STRUCT_REFINERY);
-            if (Can_Build(b, ActLike) && (money > b->Cost_Of() || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (money > b->Cost_Of() || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr =
@@ -5977,17 +6475,17 @@ int HouseClass::AI_Building(void)
         **	will be sufficient money to train troopers.
         */
         current = BQuantity[STRUCT_BARRACKS] + BQuantity[STRUCT_TENT];
-        if (current < Round_Up(Rule.BarracksRatio * fixed(CurBuildings)) && current < (unsigned)Rule.BarracksLimit
+        if (current < Round_Up(Rule.BarracksRatio * fixed(CurBuildings)) && current < (unsigned)(Rule.BarracksLimit + ra4x_more)
             && (money > 300 || hasincome)) {
             b = &BuildingTypeClass::As_Reference(STRUCT_BARRACKS);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(current > 0 ? URGENCY_LOW : URGENCY_MEDIUM, b->Type);
                 }
             } else {
                 b = &BuildingTypeClass::As_Reference(STRUCT_TENT);
-                if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                     choiceptr = BuildChoice.Alloc();
                     if (choiceptr != NULL) {
                         *choiceptr = BuildChoiceClass(current > 0 ? URGENCY_LOW : URGENCY_MEDIUM, b->Type);
@@ -6002,7 +6500,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_KENNEL];
         if (current < 1 && (money > 300 || hasincome)) {
             b = &BuildingTypeClass::As_Reference(STRUCT_KENNEL);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6016,7 +6514,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_GAP];
         if (current < 1 && Power_Fraction() >= 1 && hasincome) {
             b = &BuildingTypeClass::As_Reference(STRUCT_GAP);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6029,10 +6527,10 @@ int HouseClass::AI_Building(void)
         **	be sufficient money to build vehicles.
         */
         current = BQuantity[STRUCT_WEAP];
-        if (current < Round_Up(Rule.WarRatio * fixed(CurBuildings)) && current < (unsigned)Rule.WarLimit
+        if (current < Round_Up(Rule.WarRatio * fixed(CurBuildings)) && current < (unsigned)(Rule.WarLimit + ra4x_more)
             && (money > 2000 || hasincome)) {
             b = &BuildingTypeClass::As_Reference(STRUCT_WEAP);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(current > 0 ? URGENCY_LOW : URGENCY_MEDIUM, b->Type);
@@ -6047,7 +6545,7 @@ int HouseClass::AI_Building(void)
                   + BQuantity[STRUCT_FLAME_TURRET];
         if (current < Round_Up(Rule.DefenseRatio * fixed(CurBuildings)) && current < (unsigned)Rule.DefenseLimit) {
             b = &BuildingTypeClass::As_Reference(STRUCT_FLAME_TURRET);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6055,7 +6553,7 @@ int HouseClass::AI_Building(void)
             } else {
                 if (Percent_Chance(50)) {
                     b = &BuildingTypeClass::As_Reference(STRUCT_PILLBOX);
-                    if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                    if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                         choiceptr = BuildChoice.Alloc();
                         if (choiceptr != NULL) {
                             *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6063,7 +6561,7 @@ int HouseClass::AI_Building(void)
                     }
                 } else {
                     b = &BuildingTypeClass::As_Reference(STRUCT_TURRET);
-                    if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                    if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                         choiceptr = BuildChoice.Alloc();
                         if (choiceptr != NULL) {
                             *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6103,7 +6601,7 @@ int HouseClass::AI_Building(void)
 
                 if (BQuantity[STRUCT_RADAR] == 0) {
                     b = &BuildingTypeClass::As_Reference(STRUCT_RADAR);
-                    if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                    if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                         choiceptr = BuildChoice.Alloc();
                         if (choiceptr != NULL) {
                             *choiceptr = BuildChoiceClass(URGENCY_HIGH, b->Type);
@@ -6112,7 +6610,7 @@ int HouseClass::AI_Building(void)
                 }
 
                 b = &BuildingTypeClass::As_Reference(STRUCT_SAM);
-                if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                     choiceptr = BuildChoice.Alloc();
                     if (choiceptr != NULL) {
                         *choiceptr = BuildChoiceClass(
@@ -6120,7 +6618,7 @@ int HouseClass::AI_Building(void)
                     }
                 } else {
                     b = &BuildingTypeClass::As_Reference(STRUCT_AAGUN);
-                    if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+                    if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                         choiceptr = BuildChoice.Alloc();
                         if (choiceptr != NULL) {
                             *choiceptr = BuildChoiceClass(
@@ -6137,7 +6635,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_TESLA];
         if (current < Round_Up(Rule.TeslaRatio * fixed(CurBuildings)) && current < (unsigned)Rule.TeslaLimit) {
             b = &BuildingTypeClass::As_Reference(STRUCT_TESLA);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6151,14 +6649,14 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_ADVANCED_TECH] + BQuantity[STRUCT_SOVIET_TECH];
         if (current < 1) {
             b = &BuildingTypeClass::As_Reference(STRUCT_ADVANCED_TECH);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
                 }
             } else {
                 b = &BuildingTypeClass::As_Reference(STRUCT_SOVIET_TECH);
-                if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
+                if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome) && Power_Fraction() >= 1) {
                     choiceptr = BuildChoice.Alloc();
                     if (choiceptr != NULL) {
                         *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6173,7 +6671,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_HELIPAD];
         if (current < Round_Up(Rule.HelipadRatio * fixed(CurBuildings)) && current < (unsigned)Rule.HelipadLimit) {
             b = &BuildingTypeClass::As_Reference(STRUCT_HELIPAD);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     int threat_quantity = 0;
@@ -6193,7 +6691,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_AIRSTRIP];
         if (current < Round_Up(Rule.AirstripRatio * fixed(CurBuildings)) && current < (unsigned)Rule.AirstripLimit) {
             b = &BuildingTypeClass::As_Reference(STRUCT_AIRSTRIP);
-            if (Can_Build(b, ActLike) && (b->Cost_Of() < money || hasincome)) {
+            if (Ra4x_AI_Can_Build(this, b) && (b->Cost_Of() < money || hasincome)) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr != NULL) {
                     int threat_quantity = 0;
@@ -6214,7 +6712,7 @@ int HouseClass::AI_Building(void)
         current = BQuantity[STRUCT_REPAIR];
         if (current == 0) {
             b = &BuildingTypeClass::As_Reference(STRUCT_REPAIR);
-            if (Can_Build(b, ActLike) && b->Cost_Of() < money) {
+            if (Ra4x_AI_Can_Build(this, b) && b->Cost_Of() < money) {
                 choiceptr = BuildChoice.Alloc();
                 if (choiceptr) {
                     *choiceptr = BuildChoiceClass(URGENCY_MEDIUM, b->Type);
@@ -6235,7 +6733,13 @@ int HouseClass::AI_Building(void)
             }
         }
         if (best != URGENCY_NONE) {
-            BuildStructure = BuildChoice.Ptr(bestindex)->Structure;
+            /*
+            **	Custom build: the smart campaign AI first rebuilds the mission's own base layout
+            **	(already picked above) unless something urgent, such as a first refinery, is needed.
+            */
+            if (!ra4x || BuildStructure == STRUCT_NONE || best >= URGENCY_HIGH) {
+                BuildStructure = BuildChoice.Ptr(bestindex)->Structure;
+            }
         }
     }
 
@@ -6269,12 +6773,50 @@ int HouseClass::AI_Unit(void)
     **	A computer controlled house will try to build a replacement
     **	harvester if possible.
     */
-    if (IQ >= Rule.IQHarvester && !IsTiberiumShort && !IsHuman && BQuantity[STRUCT_REFINERY] > UQuantity[UNIT_HARVESTER]
-        && Difficulty != DIFF_HARD) {
+    bool ra4x = Ra4x_Smart_AI(this);
+    if (Ra4x_AI_IQ(this) >= Rule.IQHarvester && !IsTiberiumShort && !IsHuman
+        && (ra4x ? (min(Ra4x_Placed(this, STRUCT_REFINERY) * 2, 10) > (int)UQuantity[UNIT_HARVESTER])
+                 : (BQuantity[STRUCT_REFINERY] > UQuantity[UNIT_HARVESTER] && Difficulty != DIFF_HARD))) {
         if (UnitTypeClass::As_Reference(UNIT_HARVESTER).Level <= (unsigned)Control.TechLevel) {
             BuildUnit = UNIT_HARVESTER;
             return (TICKS_PER_SECOND);
         }
+    }
+
+    /*
+    **	Custom build: the smart campaign AI expands. Once its main base is up (construction yard, war
+    **	factory, refinery, ten buildings) and it can afford it, it builds one more MCV (two more with a
+    **	big base); UnitClass::Mission_Guard sends that MCV to an ore field away from the base to deploy.
+    **	The (expensive) ore scan for a reachable expansion spot runs at most every 20 seconds.
+    */
+    if (ra4x && BQuantity[STRUCT_CONST] > 0 && BQuantity[STRUCT_WEAP] > 0 && Ra4x_Placed(this, STRUCT_REFINERY) > 0
+        && UQuantity[UNIT_HARVESTER] > 0 && CurBuildings >= 10
+        && (int)(BQuantity[STRUCT_CONST] + UQuantity[UNIT_MCV]) < (CurBuildings >= 30 ? 3 : 2)
+        && Available_Money() >= UnitTypeClass::As_Reference(UNIT_MCV).Cost_Of() + 1000) {
+        static long ra4x_next_check[HOUSE_COUNT];
+        if (Frame >= ra4x_next_check[Class->House] || Frame + TICKS_PER_MINUTE < ra4x_next_check[Class->House]) {
+            ra4x_next_check[Class->House] = Frame + TICKS_PER_SECOND * 20;
+            BuildingClass const* yard = NULL;
+            for (int i = 0; i < Buildings.Count() && yard == NULL; i++) {
+                BuildingClass const* b = Buildings.Ptr(i);
+                if (b != NULL && b->IsActive && !b->IsInLimbo && b->Owner() == Class->House && *b == STRUCT_WEAP) {
+                    yard = b;
+                }
+            }
+            if (yard != NULL && Ra4x_Expansion_Cell(this, Coord_Cell(yard->Center_Coord())) != 0) {
+                BuildUnit = UNIT_MCV;
+                return (TICKS_PER_SECOND);
+            }
+        }
+    }
+
+    /*
+    **	Custom build: the smart campaign AI only orders army units it can pay for on top of the money
+    **	it keeps back for its economy (see Ra4x_Army_Reserve).
+    */
+    int budget = Available_Money() - Ra4x_Army_Reserve(this, UQuantity[UNIT_HARVESTER]);
+    if (ra4x && (budget <= 0 || Units.Count() >= Rule.UnitMax - 100)) {
+        return (TICKS_PER_SECOND); // (also keeps 100 free vehicle slots for the player and scripts)
     }
 
     if (Session.Type == GAME_NORMAL) {
@@ -6343,7 +6885,7 @@ int HouseClass::AI_Unit(void)
         UnitType bestlist[UNIT_COUNT];
         for (UnitType utype = UNIT_FIRST; utype < UNIT_COUNT; utype++) {
             if (counter[utype] > 0 && Can_Build(&UnitTypeClass::As_Reference(utype), Class->House)
-                && UnitTypeClass::As_Reference(utype).Cost_Of() <= Available_Money()) {
+                && UnitTypeClass::As_Reference(utype).Cost_Of() <= (ra4x ? budget : Available_Money())) {
                 if (bestval == -1 || bestval < counter[utype]) {
                     bestval = counter[utype];
                     bestcount = 0;
@@ -6360,18 +6902,23 @@ int HouseClass::AI_Unit(void)
         }
     }
 
-    if (IsBaseBuilding) {
+    /*
+    **	Custom build: the smart campaign AI fills the mission's teams first (picked above) and only then
+    **	builds extra combat vehicles of its own side for its attack waves.
+    */
+    if (IsBaseBuilding && (!ra4x || BuildUnit == UNIT_NONE)) {
 
         int counter[UNIT_COUNT];
         int total = 0;
         UnitType index;
         for (index = UNIT_FIRST; index < UNIT_COUNT; index++) {
             UnitTypeClass const* utype = &UnitTypeClass::As_Reference(index);
-            if (Can_Build(utype, ActLike) && utype->Type != UNIT_HARVESTER) {
+            if (Ra4x_AI_Can_Build(this, utype) && utype->Type != UNIT_HARVESTER
+                && (!ra4x || utype->Cost_Of() <= budget)) {
                 if (utype->PrimaryWeapon != NULL) {
                     counter[index] = 20;
                 } else {
-                    counter[index] = 1;
+                    counter[index] = ra4x ? 0 : 1;
                 }
             } else {
                 counter[index] = 0;
@@ -6498,7 +7045,7 @@ int HouseClass::AI_Vessel(void)
         }
     }
 
-    if (IsBaseBuilding) {
+    if (IsBaseBuilding && !Ra4x_Smart_AI(this)) {
         BuildVessel = VESSEL_NONE;
     }
 
@@ -6528,6 +7075,10 @@ int HouseClass::AI_Infantry(void)
         return (TICKS_PER_SECOND);
     if (CurInfantry >= Control.MaxInfantry)
         return (TICKS_PER_SECOND);
+    bool ra4x = Ra4x_Smart_AI(this);
+    int budget = Available_Money() - Ra4x_Army_Reserve(this, UQuantity[UNIT_HARVESTER]);
+    if (ra4x && (budget <= 0 || Infantry.Count() >= Rule.InfantryMax - 100))
+        return (TICKS_PER_SECOND); // (also keeps 100 free infantry slots for the player and scripts)
 
     if (Session.Type == GAME_NORMAL) {
         TechnoTypeClass const* techno = 0;
@@ -6600,7 +7151,7 @@ int HouseClass::AI_Infantry(void)
 
             if (utype != INFANTRY_DOG || !(IScan & INFANTRYF_DOG)) {
                 if (counter[utype] > 0 && Can_Build(&InfantryTypeClass::As_Reference(utype), Class->House)
-                    && InfantryTypeClass::As_Reference(utype).Cost_Of() <= Available_Money()) {
+                    && InfantryTypeClass::As_Reference(utype).Cost_Of() <= (ra4x ? budget : Available_Money())) {
                     if (bestval == -1 || bestval < counter[utype]) {
                         bestval = counter[utype];
                         bestcount = 0;
@@ -6619,7 +7170,11 @@ int HouseClass::AI_Infantry(void)
         }
     }
 
-    if (IsBaseBuilding) {
+    /*
+    **	Custom build: the smart campaign AI fills the mission's teams first (picked above) and only then
+    **	trains extra infantry of its own side for its attack waves.
+    */
+    if (IsBaseBuilding && (!ra4x || BuildInfantry == INFANTRY_NONE)) {
         HouseClass const* enemy = NULL;
         if (Enemy != HOUSE_NONE) {
             enemy = HouseClass::As_Pointer(Enemy);
@@ -6637,8 +7192,9 @@ int HouseClass::AI_Infantry(void)
         int count = 0;
         int total = 0;
         for (InfantryType index = INFANTRY_FIRST; index < INFANTRY_COUNT; index++) {
-            if (Can_Build(&InfantryTypeClass::As_Reference(index), ActLike)
-                && InfantryTypeClass::As_Reference(index).Level <= (unsigned)Control.TechLevel) {
+            if (Ra4x_AI_Can_Build(this, &InfantryTypeClass::As_Reference(index))
+                && (ra4x ? InfantryTypeClass::As_Reference(index).Cost_Of() <= budget
+                         : InfantryTypeClass::As_Reference(index).Level <= (unsigned)Control.TechLevel)) {
                 typetrack[count].Value = 0;
 #ifdef FIXIT_CSII //	checked - ajw 9/28/98 This looks like a potential bug. It is prob. for save game format           \
                   //compatibility.
@@ -6731,34 +7287,38 @@ int HouseClass::AI_Aircraft(void)
 {
     assert(Houses.ID(this) == ID);
 
-    if (!IsHuman && IQ >= Rule.IQAircraft) {
+    if (!IsHuman && Ra4x_AI_IQ(this) >= Rule.IQAircraft) {
         if (BuildAircraft != AIRCRAFT_NONE)
             return (TICKS_PER_SECOND);
         if (CurAircraft >= Control.MaxAircraft)
             return (TICKS_PER_SECOND);
+        if (Ra4x_Smart_AI(this)
+            && (Available_Money() - Ra4x_Army_Reserve(this, UQuantity[UNIT_HARVESTER]) < 1500
+                || Aircraft.Count() >= Rule.AircraftMax - 20))
+            return (TICKS_PER_SECOND);
 
-        if (Can_Build(&AircraftTypeClass::As_Reference(AIRCRAFT_LONGBOW), ActLike)
+        if (Ra4x_AI_Can_Build(this, &AircraftTypeClass::As_Reference(AIRCRAFT_LONGBOW))
             && AircraftTypeClass::As_Reference(AIRCRAFT_LONGBOW).Level <= (unsigned)Control.TechLevel
             && BQuantity[STRUCT_HELIPAD] > AQuantity[AIRCRAFT_LONGBOW] + AQuantity[AIRCRAFT_HIND]) {
             BuildAircraft = AIRCRAFT_LONGBOW;
             return (TICKS_PER_SECOND);
         }
 
-        if (Can_Build(&AircraftTypeClass::As_Reference(AIRCRAFT_HIND), ActLike)
+        if (Ra4x_AI_Can_Build(this, &AircraftTypeClass::As_Reference(AIRCRAFT_HIND))
             && AircraftTypeClass::As_Reference(AIRCRAFT_HIND).Level <= (unsigned)Control.TechLevel
             && BQuantity[STRUCT_HELIPAD] > AQuantity[AIRCRAFT_LONGBOW] + AQuantity[AIRCRAFT_HIND]) {
             BuildAircraft = AIRCRAFT_HIND;
             return (TICKS_PER_SECOND);
         }
 
-        if (Can_Build(&AircraftTypeClass::As_Reference(AIRCRAFT_MIG), ActLike)
+        if (Ra4x_AI_Can_Build(this, &AircraftTypeClass::As_Reference(AIRCRAFT_MIG))
             && AircraftTypeClass::As_Reference(AIRCRAFT_MIG).Level <= (unsigned)Control.TechLevel
             && BQuantity[STRUCT_AIRSTRIP] > AQuantity[AIRCRAFT_MIG] + AQuantity[AIRCRAFT_YAK]) {
             BuildAircraft = AIRCRAFT_MIG;
             return (TICKS_PER_SECOND);
         }
 
-        if (Can_Build(&AircraftTypeClass::As_Reference(AIRCRAFT_YAK), ActLike)
+        if (Ra4x_AI_Can_Build(this, &AircraftTypeClass::As_Reference(AIRCRAFT_YAK))
             && AircraftTypeClass::As_Reference(AIRCRAFT_YAK).Level <= (unsigned)Control.TechLevel
             && BQuantity[STRUCT_AIRSTRIP] > AQuantity[AIRCRAFT_MIG] + AQuantity[AIRCRAFT_YAK]) {
             BuildAircraft = AIRCRAFT_YAK;

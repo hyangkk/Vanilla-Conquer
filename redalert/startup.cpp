@@ -333,6 +333,13 @@ int main(int argc, char* argv[])
             RESFACTOR = 1;
             ScreenWidth = 320;
             ScreenHeight = 200;
+        } else {
+            /*
+            **	Custom build: [Video] GameWidth/GameHeight choose a larger game canvas (as in the
+            **	Tiberian Dawn build); the HUD is anchored to the right edge.
+            */
+            ScreenWidth = Settings.Video.GameWidth;
+            ScreenHeight = Settings.Video.GameHeight;
         }
 #endif
         Set_Resfactor_Globals(RESFACTOR);

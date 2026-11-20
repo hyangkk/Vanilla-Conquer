@@ -101,6 +101,11 @@
 #include "keyframe.h"
 #include "common/miscasm.h"
 
+// Custom build (house.cpp): smart campaign AI for the player's computer enemies.
+bool Ra4x_Smart_AI(const HouseClass* house);
+int Ra4x_AI_IQ(const HouseClass* house);
+bool Ra4x_AI_Direct_MCV(UnitClass* mcv);
+
 extern void Logic_Switch_Player_Context(ObjectClass* object);
 extern void Logic_Switch_Player_Context(HouseClass* object);
 extern void On_Special_Weapon_Targetting(const HouseClass* player_ptr, SpecialWeaponType weapon_type);
@@ -1400,7 +1405,7 @@ void UnitClass::Enter_Idle_Mode(bool initial)
                 return;
             }
 
-            if (House->IQ < Rule.IQGuardArea || Team.Is_Valid()) {
+            if (Ra4x_AI_IQ(House) < Rule.IQGuardArea || Team.Is_Valid()) {
                 order = MISSION_GUARD;
             } else {
                 order = MISSION_GUARD_AREA;
@@ -3819,6 +3824,13 @@ int UnitClass::Mission_Guard(void)
     }
 
     if (*this == UNIT_MCV && House->IsBaseBuilding) {
+        /*
+        **	Custom build: a smart campaign AI house that already has a construction yard first drives
+        **	the MCV to an ore field away from its base (expansion) and deploys it there.
+        */
+        if (Ra4x_AI_Direct_MCV(this)) {
+            return (MissionControl[Mission].Normal_Delay() + Random_Pick(0, 2));
+        }
         Assign_Mission(MISSION_UNLOAD);
         return (MissionControl[Mission].Normal_Delay() + Random_Pick(0, 2));
     }
@@ -5056,7 +5068,7 @@ bool UnitClass::Should_Crush_It(TechnoClass const* it) const
     **	If the house IQ indicates that crushing should not be allowed, then don't
     **	suggest that crushing be done.
     */
-    if (House->IQ < Rule.IQCrush)
+    if (Ra4x_AI_IQ(House) < Rule.IQCrush)
         return (false);
 
     /*
@@ -5323,6 +5335,15 @@ void UnitClass::Shroud_Regen(void)
 int UnitClass::Mission_Guard_Area(void)
 {
     assert(IsActive);
+
+    /*
+    **	Custom build: a smart campaign AI MCV that just left the factory (guard area) switches to plain
+    **	guard, where it picks an expansion spot or deploys (see Mission_Guard).
+    */
+    if (*this == UNIT_MCV && House->IsBaseBuilding && Ra4x_Smart_AI(House) && !Target_Legal(NavCom)) {
+        Assign_Mission(MISSION_GUARD);
+        return (1);
+    }
 
     /*
     **	Check to see if this is an APC that is largely empty and not otherwise doing anything.

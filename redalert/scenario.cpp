@@ -2134,6 +2134,20 @@ bool Read_Scenario_INI(char* fname, bool)
     **	Create scenario filename and read the file.
     */
     //	sprintf(fname, "%s.INI", root);
+    /*
+    **	Custom build: Counterstrike's last Soviet missions (SCU36-38) are numbered like Aftermath
+    **	ones but live on the Counterstrike disc. If the chosen disc lacks the scenario, use whichever
+    **	installed disc has it.
+    */
+    if (!CCFileClass(fname).Is_Available()) {
+        for (int cd = 0; cd <= 3; ++cd) {
+            if (Force_CD_Available(cd) && CCFileClass(fname).Is_Available()) {
+                RequiredCD = cd;
+                break;
+            }
+        }
+    }
+
     CCINIClass ini;
     CCFileClass file(fname);
     //	file.Cache();

@@ -37,6 +37,18 @@
 
 #include "radar.h"
 
+/*
+**	Custom build: horizontal shift of the right-hand HUD (power bar, sidebar) on game canvases wider
+**	than the original 320 (DOS) / 640 (hi-res) pixels.
+*/
+int Hud_Shift_X(void);
+
+/*
+**	Custom build: the production sidebar is 144 (320-scale) units wide instead of 80, so the power bar
+**	and production strips sit 64 units further left than the radar housing.
+*/
+int Power_Shift_X(void);
+
 class PowerClass : public RadarClass
 {
 public:
