@@ -25,4 +25,10 @@ void Ra4x_Add_All_Buildables(const HouseClass* house);
 */
 int Ra4x_Target_Rank(TechnoClass const* self, TARGET target);
 
+/*
+**	Skirmish: computer players' alliance with each other (default allied; grenadiers toggle it).
+*/
+bool Ra4x_Computers_Allied(void);
+void Ra4x_Set_Computer_Alliance(bool allied, bool announce);
+
 #endif

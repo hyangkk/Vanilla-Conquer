@@ -826,6 +826,87 @@ HouseStaticClass::HouseStaticClass(void)
 **	structure, infantry, vehicle, ship and aircraft, ignoring faction, tech level and prerequisites,
 **	even without a construction yard or matching factory.
 */
+/*
+**	Custom build: skirmish computer players start allied with each other; every grenadier the human
+**	player trains toggles them between allied and at war with each other.
+*/
+static int Ra4x_Computer_Houses(HouseClass** out)
+{
+    int n = 0;
+    for (int h = HOUSE_MULTI1; h <= HOUSE_MULTI8; h++) {
+        HouseClass* hp = HouseClass::As_Pointer((HousesType)h);
+        if (hp != NULL && hp->IsActive && !hp->IsHuman && !hp->IsDefeated) {
+            out[n++] = hp;
+        }
+    }
+    return n;
+}
+
+bool Ra4x_Computers_Allied(void)
+{
+    HouseClass* cpu[8];
+    int n = Ra4x_Computer_Houses(cpu);
+    for (int a = 0; a < n; a++) {
+        for (int b = 0; b < n; b++) {
+            if (a != b && !cpu[a]->Is_Ally(cpu[b])) {
+                return false;
+            }
+        }
+    }
+    return n >= 2;
+}
+
+void Ra4x_Set_Computer_Alliance(bool allied, bool announce)
+{
+    HouseClass* cpu[8];
+    int n = Ra4x_Computer_Houses(cpu);
+    if (n < 2) {
+        return;
+    }
+    ScenarioInit++; // silent and always permitted
+    for (int a = 0; a < n; a++) {
+        for (int b = 0; b < n; b++) {
+            if (a == b) {
+                continue;
+            }
+            if (allied) {
+                cpu[a]->Make_Ally(cpu[b]->Class->House);
+            } else {
+                cpu[a]->Make_Enemy(cpu[b]->Class->House);
+            }
+        }
+    }
+    ScenarioInit--;
+
+    if (allied) {
+        /*
+        **	Cease fire: computer units stop shooting at their new allies.
+        */
+        for (int index = 0; index < Logic.Count(); index++) {
+            ObjectClass* object = Logic[index];
+            if (object != NULL && object->Is_Techno() && !object->IsInLimbo) {
+                TechnoClass* techno = (TechnoClass*)object;
+                if (!techno->House->IsHuman) {
+                    TechnoClass* target = As_Techno(techno->TarCom);
+                    if (target != NULL && techno->House->Is_Ally(target)) {
+                        techno->Assign_Target(TARGET_NONE);
+                    }
+                }
+            }
+        }
+    }
+    if (announce) {
+        Session.Messages.Add_Message(NULL,
+                                     0,
+                                     (char*)(allied ? "Computer players are now ALLIED with each other"
+                                                    : "Computer players are now AT WAR with each other"),
+                                     PCOLOR_GOLD,
+                                     TPF_6PT_GRAD | TPF_USE_GRAD_PAL | TPF_FULLSHADOW,
+                                     TICKS_PER_MINUTE * Rule.MessageDelay);
+        Map.Flag_To_Redraw(false);
+    }
+}
+
 bool Campaign_All_Tech(const HouseClass* house)
 {
     return house && Settings.Options.CampaignAllTech
@@ -3828,6 +3909,10 @@ bool HouseClass::Place_Object(RTTIType type, CELL cell)
                     /*
                     **	Custom build: every rifleman the human player trains pays 50000 credits.
                     */
+                    if (IsHuman && Session.Type == GAME_SKIRMISH && pending->What_Am_I() == RTTI_INFANTRY
+                        && *(InfantryClass*)pending == INFANTRY_E2) {
+                        Ra4x_Set_Computer_Alliance(!Ra4x_Computers_Allied(), true); // grenadier toggle
+                    }
                     if (IsHuman && pending->What_Am_I() == RTTI_INFANTRY
                         && *(InfantryClass*)pending == INFANTRY_E1) {
                         Refund_Money(50000);

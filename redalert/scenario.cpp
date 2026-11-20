@@ -60,6 +60,7 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "function.h"
+#include "campaigntech.h"
 #include "msgbox.h"
 #include "textbtn.h"
 #include "factory.h"
@@ -2916,25 +2917,11 @@ void Assign_Houses(void)
     }
 
     /*
-    **	Custom build: in skirmish the computer players are allied with each other, so they only
-    **	fight the human player(s).
+    **	Custom build: in skirmish the computer players start allied with each other, so they only
+    **	fight the human player(s). Training a grenadier toggles this (see Ra4x_Set_Computer_Alliance).
     */
     if (Session.Type == GAME_SKIRMISH) {
-        int total = Session.Players.Count() + Session.Options.AIPlayers;
-        for (i = 0; i < total; i++) {
-            HouseClass* a = HouseClass::As_Pointer((HousesType)(i + HOUSE_MULTI1));
-            if (a == NULL || a->IsHuman) {
-                continue;
-            }
-            for (j = 0; j < total; j++) {
-                HouseClass* b = HouseClass::As_Pointer((HousesType)(j + HOUSE_MULTI1));
-                if (b != NULL && b != a && !b->IsHuman) {
-                    ScenarioInit++; // silent, always permitted
-                    a->Make_Ally(b->Class->House);
-                    ScenarioInit--;
-                }
-            }
-        }
+        Ra4x_Set_Computer_Alliance(true, false);
     }
 }
 
