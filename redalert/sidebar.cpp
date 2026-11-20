@@ -234,6 +234,14 @@ int Ra4x_Side_Width(void)
     return SeenBuff.Get_Width() - view;
 }
 
+/*
+**	Left edge of the power bar: directly left of the building grid.
+*/
+int Ra4x_Power_X(void)
+{
+    return SeenBuff.Get_Width() - 3 - Ra4x_Grid_W() - Ra4x_Strip_Step() - 18;
+}
+
 static int Ra4x_Rows(void)
 {
     int top = SidebarClass::COLUMN_ONE_Y * RESFACTOR;
@@ -855,7 +863,15 @@ void SidebarClass::Draw_It(bool complete)
     bool panel = IsSidebarActive && (IsToRedraw || complete) && !Debug_Map;
     if (panel && LogicPage->Lock()) {
         int left = SeenBuff.Get_Width() - Ra4x_Side_Width();
-        LogicPage->Fill_Rect(left, 8 * RESFACTOR, SeenBuff.Get_Width() - 1, SeenBuff.Get_Height() - 1, BLACK);
+        /*
+        **	Dark metal-grey panel with a bevelled edge towards the map (UI grey ramp 128-143 is the same
+        **	in every theater palette).
+        */
+        const int top = 8 * RESFACTOR, bottom = SeenBuff.Get_Height() - 1, right = SeenBuff.Get_Width() - 1;
+        LogicPage->Fill_Rect(left, top, right, bottom, 142);
+        LogicPage->Draw_Line(left, top, left, bottom, 136);
+        LogicPage->Draw_Line(left + 1, top, left + 1, bottom, 140);
+        LogicPage->Draw_Line(left + 2, top, left + 2, bottom, 141);
         LogicPage->Unlock();
     }
 

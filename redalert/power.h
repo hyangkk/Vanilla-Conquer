@@ -49,6 +49,7 @@ int Hud_Shift_X(void);
 */
 int Power_Shift_X(void);
 int Ra4x_Side_Width(void); // Custom build: width of the wide production sidebar in pixels (sidebar.cpp)
+int Ra4x_Power_X(void);    // Custom build: left edge of the power bar (sidebar.cpp)
 
 class PowerClass : public RadarClass
 {

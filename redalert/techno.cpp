@@ -132,6 +132,23 @@
 
 #include "function.h"
 #include "campaigntech.h"
+
+/*
+**	Custom build: the human player's Tesla tanks are mobile Tesla coils (same weapon and range as
+**	the player's coils).
+*/
+static bool Ra4x_Tesla_Tank(TechnoClass const* t)
+{
+    return t->What_Am_I() == RTTI_UNIT && *(UnitClass const*)t == UNIT_TESLATANK && t->House->IsHuman;
+}
+
+static WeaponTypeClass const* Ra4x_Weapon(TechnoClass const* t, int which)
+{
+    if (which == 0 && Ra4x_Tesla_Tank(t)) {
+        return BuildingTypeClass::As_Reference(STRUCT_TESLA).PrimaryWeapon;
+    }
+    return (which == 0) ? t->Techno_Type_Class()->PrimaryWeapon : t->Techno_Type_Class()->SecondaryWeapon;
+}
 #include "utracker.h"
 
 /***************************************************************************
@@ -3032,8 +3049,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         /*
         **	If there is no weapon, then firing is not allowed.
         */
-        WeaponTypeClass const* weapon =
-            ((which == 0) ? Techno_Type_Class()->PrimaryWeapon : Techno_Type_Class()->SecondaryWeapon);
+        WeaponTypeClass const* weapon = Ra4x_Weapon(this, which);
         if (weapon == NULL) {
             return (FIRE_CANT);
         }
@@ -3210,8 +3226,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
             return (1);
         }
 
-        WeaponTypeClass const* weapon =
-            (which == 0) ? Techno_Type_Class()->PrimaryWeapon : Techno_Type_Class()->SecondaryWeapon;
+        WeaponTypeClass const* weapon = Ra4x_Weapon(this, which);
         if (second && weapon != NULL) {
             return (weapon->ROF * House->ROFBias);
         }
@@ -3396,7 +3411,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         COORDINATE fire_coord;   // Coordinate of firing position.
         TechnoTypeClass const& tclass = *Techno_Type_Class();
         ObjectClass* object;
-        WeaponTypeClass const* weapon = (which == 0) ? tclass.PrimaryWeapon : tclass.SecondaryWeapon;
+        WeaponTypeClass const* weapon = Ra4x_Weapon(this, which);
 
         /*
         **	If this object doesn't have a weapon, then it is obvious that firing
@@ -3793,8 +3808,7 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                                 || ((InfantryTypeClass const*)ttype)->IsCapture))) {
                         // Check for anti-air capability
                         int primary = What_Weapon_Should_I_Use(object->As_Target());
-                        WeaponTypeClass const* weapon =
-                            (primary == 0) ? Techno_Type_Class()->PrimaryWeapon : Techno_Type_Class()->SecondaryWeapon;
+                        WeaponTypeClass const* weapon = Ra4x_Weapon(this, primary);
                         if ((object->What_Am_I() != RTTI_AIRCRAFT)
                             || ((weapon != NULL) && weapon->Bullet->IsAntiAircraft)
                             || (object->Is_Techno() && (((TechnoClass*)object)->Height == 0))) {
@@ -4066,9 +4080,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
             /*
             **	Custom build: a human player's Tesla coils reach 12 cells.
             */
-            if (What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA
-                && House->IsHuman) {
-                return (12 * CELL_LEPTON_W);
+            if ((What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA && House->IsHuman)
+                || (which == 0 && Ra4x_Tesla_Tank(this))) {
+                return (12 * CELL_LEPTON_W); // player Tesla coils and Tesla tanks
             }
             return (weapon->Range);
         }
@@ -6742,8 +6756,9 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         /*
         **	Custom build: a human player's Tesla coil reveals out to its longer reach (sight caps at 10).
         */
-        if (sight_range && What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA
-            && House->IsHuman) {
+        if (sight_range
+            && ((What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA && House->IsHuman)
+                || Ra4x_Tesla_Tank(this))) {
             sight_range = min(10, max(sight_range, Weapon_Range(0) / CELL_LEPTON_W + 1));
         }
 

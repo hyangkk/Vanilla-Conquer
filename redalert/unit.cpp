@@ -1001,6 +1001,15 @@ bool UnitClass::Unlimbo(COORDINATE coord, DirType dir)
  *=============================================================================================*/
 ResultType UnitClass::Take_Damage(int& damage, int distance, WarheadType warhead, TechnoClass* source, bool forced)
 {
+    /*
+    **	Custom build: the human player's Tesla tanks are as tough as the player's Tesla coils (twice a
+    **	coil's strength and twice its armour), scaled to the tank's own strength bar.
+    */
+    if (*this == UNIT_TESLATANK && House->IsHuman && damage > 0 && !forced) {
+        int coil = BuildingTypeClass::As_Reference(STRUCT_TESLA).MaxStrength;
+        damage = max(1, (int)((long long)damage * Class->MaxStrength / (coil * 4)));
+    }
+
     assert(Units.ID(this) == ID);
     assert(IsActive);
 

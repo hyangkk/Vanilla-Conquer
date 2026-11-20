@@ -145,7 +145,7 @@ int Hud_Shift_X(void)
 
 int Power_Shift_X(void)
 {
-    return SeenBuff.Get_Width() - Ra4x_Side_Width() - 10 * ICON_PIXEL_W * RESFACTOR; // POWER_X
+    return Ra4x_Power_X() - 10 * ICON_PIXEL_W * RESFACTOR; // POWER_X; bar sits next to the production grid
 }
 
 void PowerClass::One_Time(void)
