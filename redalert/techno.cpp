@@ -142,6 +142,115 @@ static bool Ra4x_Tesla_Tank(TechnoClass const* t)
     return t->What_Am_I() == RTTI_UNIT && *(UnitClass const*)t == UNIT_TESLATANK && t->House->IsHuman;
 }
 
+/*
+**	Custom build: the player's Tesla tanks discharge an electric nova (every 1-3 seconds it zaps every
+**	enemy within 10 cells) and call down a strike on a random nearby enemy every second. The bolts
+**	are transient visuals kept outside the saved objects.
+*/
+struct Ra4xBolt
+{
+    TechnoClass const* Source;
+    COORDINATE Target;
+    long Expires; // Frame after which the bolt is gone
+};
+static Ra4xBolt Ra4x_Bolts[64];
+static long Ra4x_Nova_Next[1024];
+static long Ra4x_Strike_Next[1024];
+
+static void Ra4x_Add_Bolt(TechnoClass const* source, COORDINATE target)
+{
+    for (int i = 0; i < 64; i++) {
+        if (Ra4x_Bolts[i].Expires <= Frame) {
+            Ra4x_Bolts[i].Source = source;
+            Ra4x_Bolts[i].Target = target;
+            Ra4x_Bolts[i].Expires = Frame + 4;
+            return;
+        }
+    }
+}
+
+static int Ra4x_Enemies_Near(TechnoClass const* self, int range, TechnoClass** out, int max)
+{
+    int n = 0;
+    COORDINATE center = self->Center_Coord();
+    auto consider = [&](TechnoClass* t) {
+        if (n < max && t != NULL && t->IsActive && !t->IsInLimbo && t->Strength > 0 && !self->House->Is_Ally(t)
+            && t->Owner() != HOUSE_NEUTRAL && ::Distance(center, t->Center_Coord()) <= range) {
+            out[n++] = t;
+        }
+    };
+    for (int i = 0; i < Units.Count(); i++)
+        consider(Units.Ptr(i));
+    for (int i = 0; i < Infantry.Count(); i++)
+        consider(Infantry.Ptr(i));
+    for (int i = 0; i < Vessels.Count(); i++)
+        consider(Vessels.Ptr(i));
+    for (int i = 0; i < Buildings.Count(); i++)
+        consider(Buildings.Ptr(i));
+    for (int i = 0; i < Aircraft.Count(); i++)
+        consider(Aircraft.Ptr(i));
+    return n;
+}
+
+static void Ra4x_Tesla_Tank_Specials(TechnoClass* self)
+{
+    int slot = self->ID & 1023;
+    TechnoClass* targets[128];
+
+    /*
+    **	A new mission restarts the frame counter; drop timers left far in the future.
+    */
+    if (Ra4x_Nova_Next[slot] > Frame + TICKS_PER_SECOND * 4) {
+        Ra4x_Nova_Next[slot] = Frame;
+    }
+    if (Ra4x_Strike_Next[slot] > Frame + TICKS_PER_SECOND * 2) {
+        Ra4x_Strike_Next[slot] = Frame;
+    }
+
+    if (Frame >= Ra4x_Nova_Next[slot]) {
+        Ra4x_Nova_Next[slot] = Frame + Random_Pick(TICKS_PER_SECOND, TICKS_PER_SECOND * 3);
+        WeaponTypeClass const* zap = BuildingTypeClass::As_Reference(STRUCT_TESLA).PrimaryWeapon;
+        int n = Ra4x_Enemies_Near(self, 10 * CELL_LEPTON_W, targets, 128);
+        for (int i = 0; i < n; i++) {
+            if (!targets[i]->IsActive || targets[i]->IsInLimbo) {
+                continue;
+            }
+            if (i < 16) {
+                Ra4x_Add_Bolt(self, targets[i]->Center_Coord());
+            }
+            int damage = zap->Attack;
+            targets[i]->Take_Damage(damage, 0, WarheadType(zap->WarheadPtr->ID), self);
+        }
+        if (n > 0) {
+            Sound_Effect(VOC_TESLA_ZAP, self->Center_Coord());
+        }
+    }
+
+    if (Frame >= Ra4x_Strike_Next[slot]) {
+        Ra4x_Strike_Next[slot] = Frame + TICKS_PER_SECOND;
+        int n = Ra4x_Enemies_Near(self, 15 * CELL_LEPTON_W, targets, 128);
+        if (n > 0) {
+            TechnoClass* victim = targets[Random_Pick(0, n - 1)];
+            COORDINATE where = victim->Center_Coord();
+            new AnimClass(ANIM_ART_EXP1, where);
+            new AnimClass(ANIM_FBALL1, Coord_Move(where, DIR_N, 0x0020));
+            Sound_Effect(VOC_KABOOM22, where);
+            int damage = 300;
+            victim->Take_Damage(damage, 0, WARHEAD_HE, self);
+        }
+    }
+
+    bool zapping = false;
+    for (int i = 0; i < 64; i++) {
+        if (Ra4x_Bolts[i].Source == self && Ra4x_Bolts[i].Expires > Frame) {
+            zapping = true;
+        }
+    }
+    if (zapping) {
+        Map.Flag_To_Redraw(true);
+    }
+}
+
 static WeaponTypeClass const* Ra4x_Weapon(TechnoClass const* t, int which)
 {
     if (which == 0 && Ra4x_Tesla_Tank(t)) {
@@ -1159,6 +1268,11 @@ void TechnoClass::Draw_It(int x, int y, WindowNumberType window) const
     */
     if ((ElectricZapDelay >= 0) && ElectricZapTarget) {
         Electric_Zap(ElectricZapTarget, ElectricZapWhich, window);
+    }
+    for (int i = 0; i < 64; i++) {
+        if (Ra4x_Bolts[i].Source == this && Ra4x_Bolts[i].Expires > Frame && Ra4x_Tesla_Tank(this)) {
+            Electric_Zap(Ra4x_Bolts[i].Target, 0, window); // Custom build: Tesla tank nova bolts
+        }
     }
 
     int width, height;
@@ -2680,6 +2794,10 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
                 Strength = min(maximum, (int)Strength + step);
                 Mark(MARK_CHANGE);
             }
+        }
+
+        if (Ra4x_Tesla_Tank(this) && !IsInLimbo && Strength > 0) {
+            Ra4x_Tesla_Tank_Specials(this);
         }
 
         /*
