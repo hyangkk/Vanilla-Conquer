@@ -199,11 +199,11 @@ void FactoryClass::AI(void)
 
     if (!IsSuspended && (Object != NULL || SpecialItem)) {
         /*
-        **	Custom build: factories of the smart campaign AI (enemy computer houses) produce exactly
-        **	twice as fast: every production tick advances two steps (STEP_COUNT is even) and charges
-        **	for both, so an order finishes in half the frames for the same total cost.
+        **	Custom build: factories of the smart campaign AI (enemy computer houses) produce about four
+        **	times as fast: every production tick advances four steps and charges for each, so an order
+        **	finishes in ~1/4 of the frames (14 instead of 54 ticks) for the same total cost.
         */
-        int steps = Ra4x_Smart_AI(House) ? 2 : 1;
+        int steps = Ra4x_Smart_AI(House) ? 4 : 1;
         bool tick = !Has_Completed() && Graphic_Logic();
         for (int index = 0; index < steps && tick; index++) {
             if (index > 0) {
