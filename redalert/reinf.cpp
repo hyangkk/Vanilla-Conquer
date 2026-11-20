@@ -459,6 +459,7 @@ bool Do_Reinforcements(TeamTypeClass const* teamtype)
     FootClass* o = (FootClass*)(ObjectClass*)object->Next;
     object->Next = 0;
     bool okvoice = false;
+    int tries = 0; // Custom build: bound the search for a free entry cell (original could loop forever).
     while (newcell > 0 && object != NULL) {
         DirType desiredfacing = Facing_Dir(eface);
         if (object->What_Am_I() == RTTI_AIRCRAFT) {
@@ -493,11 +494,14 @@ bool Do_Reinforcements(TeamTypeClass const* teamtype)
                     break;
                 }
             }
-            if (adj < FACING_COUNT)
+            if (adj < FACING_COUNT && ++tries < 32) {
+                ScenarioInit--;
                 continue;
+            }
             newcell = 0;
         }
         ScenarioInit--;
+        tries = 0;
 
         object = o;
         if (object != NULL) {
