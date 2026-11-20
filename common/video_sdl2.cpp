@@ -978,7 +978,8 @@ private:
                 SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, cellWidth, atlasHeight);
             if (!detailTexture)
                 return false;
-            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeNearest);
+            SDL_SetTextureScaleMode(detailTexture, SDL_ScaleModeLinear); // smooth, no uneven pixel doubling
+
         }
         SDL_Color* colors = palette ? palette->colors : nullptr;
         if (!colors)

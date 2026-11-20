@@ -225,7 +225,13 @@ static int Ra4x_Strip_Step(void)
 
 int Ra4x_Side_Width(void)
 {
-    return (16 + 2 + Ra4x_Strip_Step() + Ra4x_Grid_W() + 3) & ~1;
+    /*
+    **	The sidebar starts exactly where the tactical view (whole 24-pixel cells) ends, so no strip of
+    **	the screen is left that nobody redraws (help text used to leave remnants there).
+    */
+    int nominal = (16 + 2 + Ra4x_Strip_Step() + Ra4x_Grid_W() + 3) & ~1;
+    int view = ((SeenBuff.Get_Width() - nominal) / ICON_PIXEL_W) * ICON_PIXEL_W;
+    return SeenBuff.Get_Width() - view;
 }
 
 static int Ra4x_Rows(void)
@@ -260,9 +266,9 @@ void SidebarClass::Ra4x_Layout(void)
     Background.Width = Ra4x_Side_Width() - 1;
     Background.Height = SeenBuff.Get_Height() - Background.Y;
 
-    Column[0].X = left + 18;
+    Column[1].X = SeenBuff.Get_Width() - 3 - Ra4x_Grid_W();
+    Column[0].X = Column[1].X - Ra4x_Strip_Step();
     Column[0].Y = top;
-    Column[1].X = Column[0].X + Ra4x_Strip_Step();
     Column[1].Y = top;
     if (Column[0].TopIndex & 1) {
         Column[0].TopIndex--;

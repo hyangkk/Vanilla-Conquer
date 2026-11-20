@@ -116,6 +116,21 @@ bool Expansion_Dialog(bool bCounterstrike);
 
 extern bool Is_Mission_Counterstrike(char* file_name);
 
+/*
+**	Custom build: title pictures are 640x400; on a larger game canvas they are loaded centred. Stretch
+**	the picture to fill the whole canvas instead of leaving black borders.
+*/
+static void Ra4x_Fill_Title(GraphicViewPortClass& page)
+{
+    int w = page.Get_Width(), h = page.Get_Height();
+    if (RESFACTOR == 1 || (w <= 640 && h <= 400)) {
+        return;
+    }
+    static GraphicBufferClass picture(640, 400);
+    page.Blit(picture, (w - 640) / 2, (h - 400) / 2, 0, 0, 640, 400);
+    picture.Scale(page, 0, 0, 0, 0, 640, 400, w, h);
+}
+
 /***********************************************************************************************
  * Load_Prolog_Page -- Loads the special pre-prolog "please wait" page.                        *
  *                                                                                             *
@@ -138,6 +153,7 @@ static void Load_Prolog_Page(void)
     const char* pict = (RESFACTOR == 1) ? "PROLOG.CPS" : "PROLOG.PCX";
     Hide_Mouse();
     Load_Title_Screen(pict, &HidPage, (unsigned char*)CCPalette.Get_Data());
+    Ra4x_Fill_Title(HidPage);
     HidPage.Blit(SeenPage);
     CCPalette.Set();
     Show_Mouse();
@@ -1863,6 +1879,7 @@ void Load_Title_Page(bool visible)
     const char* titlepict = RESFACTOR == 1 ? "TITLE.CPS" : "TITLE.PCX";
 
     Load_Title_Screen((char*)titlepict, &HidPage, (unsigned char*)CCPalette.Get_Data());
+    Ra4x_Fill_Title(HidPage);
     if (visible) {
         HidPage.Blit(SeenPage);
     }

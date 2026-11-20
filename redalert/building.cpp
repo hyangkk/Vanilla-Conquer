@@ -1250,6 +1250,14 @@ ResultType BuildingClass::Take_Damage(int& damage, int distance, WarheadType war
     ResultType res = RESULT_NONE;
     int shakes;
 
+    /*
+    **	Custom build: a human player's Tesla coils have twice the strength and twice the armour,
+    **	i.e. they take a quarter of the damage.
+    */
+    if (*this == STRUCT_TESLA && House->IsHuman && damage > 0 && !forced) {
+        damage = max(1, damage / 4);
+    }
+
     if (this != source /*&& !Class->IsInsignificant*/) {
 
         if (source) {

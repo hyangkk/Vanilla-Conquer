@@ -4064,11 +4064,11 @@ bool TechnoClass::Evaluate_Object(ThreatType method,
         }
         if (weapon != NULL) {
             /*
-            **	Custom build: a human player's Tesla coils reach 50% farther.
+            **	Custom build: a human player's Tesla coils reach 12 cells.
             */
             if (What_Am_I() == RTTI_BUILDING && *(BuildingClass const*)this == STRUCT_TESLA
                 && House->IsHuman) {
-                return (weapon->Range * 3 / 2);
+                return (12 * CELL_LEPTON_W);
             }
             return (weapon->Range);
         }
