@@ -2497,7 +2497,13 @@ ActionType AircraftClass::What_Action(CELL cell) const
 
     // using function for IsVisible so we have different results for different players - JAS 2019/09/30
     if ((action == ACTION_MOVE || action == ACTION_ATTACK) && !Map[cell].Is_Visible(PlayerPtr)) {
-        action = ACTION_NOMOVE;
+        /*
+        **	Custom build: the player's helicopters may be sent into unexplored (black) areas like
+        **	ground units.
+        */
+        if (!(action == ACTION_MOVE && !Class->IsFixedWing && House->IsHuman)) {
+            action = ACTION_NOMOVE;
+        }
     }
 
     if (action == ACTION_ATTACK && Class->PrimaryWeapon == NULL) {
@@ -3204,8 +3210,8 @@ MoveType AircraftClass::Can_Enter_Cell(CELL cell, FacingType) const
             return (MOVE_NO);
     }
 
-    if (Session.Type == GAME_NORMAL && IsOwnedByPlayer && !cellptr->IsMapped) {
-        return (MOVE_NO);
+    if (Session.Type == GAME_NORMAL && IsOwnedByPlayer && !cellptr->IsMapped && Class->IsFixedWing) {
+        return (MOVE_NO); // Custom build: helicopters may fly into unexplored cells.
     }
 
     return (MOVE_OK);
