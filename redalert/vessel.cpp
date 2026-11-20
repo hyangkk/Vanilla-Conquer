@@ -1296,7 +1296,8 @@ TARGET VesselClass::Greatest_Threat(ThreatType threat) const
 
         // Cruisers can never hit infantry anyway, so take 'em out of the list
         // of possible targets.
-        if (*this == VESSEL_CA) {
+        // Custom build: the player's cruisers are pinpoint accurate, so they do target infantry.
+        if (*this == VESSEL_CA && !House->IsHuman) {
             threat = (ThreatType)(threat & (~THREAT_INFANTRY));
         }
     }

@@ -1268,11 +1268,12 @@ static int Ra4x_Smart_Attack(HouseClass* house, bool& launched)
     }
 
     /*
-    **	The wave grows with time: 8 objects early on, up to 20 later in the mission.
+    **	The wave grows with time: 3 objects early on, up to 10 later in the mission. Custom build: waves
+    **	come several times as often as before (smaller gathering threshold, shorter pauses).
     */
-    int wave = min(20, 8 + (int)(Frame / (TICKS_PER_MINUTE * 2)));
+    int wave = min(10, 3 + (int)(Frame / (TICKS_PER_MINUTE * 3)));
     if (idle < wave) {
-        return (Random_Pick(TICKS_PER_SECOND * 15, TICKS_PER_SECOND * 30));
+        return (Random_Pick(TICKS_PER_SECOND * 5, TICKS_PER_SECOND * 10));
     }
 
     for (int i = 0; i < Units.Count(); i++) {
@@ -1302,7 +1303,7 @@ static int Ra4x_Smart_Attack(HouseClass* house, bool& launched)
     }
     Ra4x_AI_Waves[house->Class->House]++;
     launched = true;
-    return (Random_Pick(TICKS_PER_MINUTE, TICKS_PER_MINUTE * 2));
+    return (Random_Pick(TICKS_PER_SECOND * 15, TICKS_PER_SECOND * 30));
 }
 
 /*
