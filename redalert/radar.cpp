@@ -146,7 +146,7 @@ void RadarClass::One_Time(void)
 {
     RadWidth = 80 * RESFACTOR;
     RadHeight = 70 * RESFACTOR;
-    RadX = SeenBuff.Get_Width() - RadWidth;
+    RadX = Hud_Shift_X() + 320 * RESFACTOR - RadWidth; // Custom build: follows the radar housing
     RadY = 7 * RESFACTOR;
     RadPWidth = 64 * RESFACTOR;
     RadPHeight = 64 * RESFACTOR;

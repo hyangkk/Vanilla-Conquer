@@ -398,7 +398,7 @@ void SidebarClass::Init_IO(void)
     **	Custom build: saved games carry the radar and production strip positions of the canvas they
     **	were made on. Recompute them for the current canvas so saves load at any game resolution.
     */
-    RadX = SeenBuff.Get_Width() - RadWidth;
+    RadX = Hud_Shift_X() + 320 * RESFACTOR - RadWidth;
     RadarButton.X = RadX;
     Ra4x_Layout();
 
@@ -868,10 +868,25 @@ void SidebarClass::Draw_It(bool complete)
         **	in every theater palette).
         */
         const int top = 8 * RESFACTOR, bottom = SeenBuff.Get_Height() - 1, right = SeenBuff.Get_Width() - 1;
-        LogicPage->Fill_Rect(left, top, right, bottom, 142);
-        LogicPage->Draw_Line(left, top, left, bottom, 136);
-        LogicPage->Draw_Line(left + 1, top, left + 1, bottom, 140);
-        LogicPage->Draw_Line(left + 2, top, left + 2, bottom, 141);
+        LogicPage->Fill_Rect(left, top, right, bottom, 141);
+        /*
+        **	Raised metal edge towards the map: dark outline, bright highlight, then a falloff.
+        */
+        LogicPage->Draw_Line(left, top, left, bottom, 142);
+        LogicPage->Draw_Line(left + 1, top, left + 1, bottom, 132);
+        LogicPage->Draw_Line(left + 2, top, left + 2, bottom, 135);
+        LogicPage->Draw_Line(left + 3, top, left + 3, bottom, 138);
+        LogicPage->Draw_Line(left + 4, top, left + 4, bottom, 140);
+        /*
+        **	Sunken frame around the production grids.
+        */
+        const int gx0 = Column[0].X - 2, gy0 = Column[0].Y - 2;
+        const int gx1 = Column[1].X + Ra4x_Grid_W() + 1, gy1 = Column[0].Y + Ra4x_Rows() * Ra4x_Cameo_H() + 1;
+        LogicPage->Fill_Rect(gx0, gy0, gx1, gy1, BLACK);
+        LogicPage->Draw_Line(gx0, gy0, gx1, gy0, 142);
+        LogicPage->Draw_Line(gx0, gy0, gx0, gy1, 142);
+        LogicPage->Draw_Line(gx0, gy1, gx1, gy1, 134);
+        LogicPage->Draw_Line(gx1, gy0, gx1, gy1, 134);
         LogicPage->Unlock();
     }
 

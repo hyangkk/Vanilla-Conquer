@@ -140,7 +140,15 @@ static int Ra4x_Shown_Power(void)
 
 int Hud_Shift_X(void)
 {
-    return SeenBuff.Get_Width() - 320 * RESFACTOR;
+    if (RESFACTOR == 1) {
+        return SeenBuff.Get_Width() - 320 * RESFACTOR;
+    }
+    /*
+    **	Custom build: the radar housing (and its repair/sell/map buttons) is centred in the wide sidebar.
+    */
+    int side = Ra4x_Side_Width();
+    int radar_left = SeenBuff.Get_Width() - side + (side - 80 * RESFACTOR) / 2;
+    return radar_left - 240 * RESFACTOR;
 }
 
 int Power_Shift_X(void)
